@@ -10,7 +10,7 @@
   - Complexity: Low
   - Value: Direct attention to specific people, creates accountability
 
-- [ ] **Watchers** - Subscribe to tasks without being assigned
+- [x] **Watchers** - Subscribe to tasks without being assigned
   - Complexity: Low
   - Value: Stakeholders can stay informed without cluttering assignment
 
@@ -207,6 +207,7 @@ Already implemented in FlowForge:
 - [x] User preferences
 - [x] @Mentions in comments
 - [x] WIP Limits for Kanban columns
+- [x] Task Watchers with notifications
 
 ---
 

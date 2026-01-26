@@ -20,6 +20,7 @@ model User {
   projects      Project[]
   comments      Comment[]
   assignedTasks Task[]    @relation("AssignedTasks")
+  watchedTasks  Task[]    @relation("TaskWatchers")
   memberships   ProjectMember[]
   preferences   UserPreferences?
   notifications Notification[]
@@ -228,6 +229,9 @@ model Task {
   // Labels (many-to-many)
   labels        Label[]
 
+  // Watchers (many-to-many)
+  watchers      User[]    @relation("TaskWatchers")
+
   comments      Comment[]
   executions    Execution[]
   notifications Notification[]
@@ -308,6 +312,8 @@ enum NotificationType {
   TASK_COMPLETED
   TASK_FAILED
   MENTIONED
+  TASK_UPDATED      // For watchers when task is updated
+  COMMENT_ADDED     // For watchers when comment is added
 }
 
 model Notification {

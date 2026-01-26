@@ -284,6 +284,94 @@ export async function notifyMention(
 }
 
 /**
+ * Notify watchers when a task is updated
+ */
+export async function notifyWatchersTaskUpdated(
+  taskId: string,
+  taskTitle: string,
+  projectName: string,
+  updaterName: string,
+  updateDescription: string,
+  excludeUserId?: string
+): Promise<void> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      watchers: {
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!task) return;
+
+  for (const watcher of task.watchers) {
+    // Don't notify the person who made the update
+    if (watcher.id === excludeUserId) continue;
+
+    await createNotification({
+      userId: watcher.id,
+      type: "TASK_UPDATED",
+      title: "Task Updated",
+      message: `${updaterName} ${updateDescription} on "${taskTitle}" in ${projectName}`,
+      taskId,
+    });
+  }
+}
+
+/**
+ * Notify watchers when a comment is added to a task
+ */
+export async function notifyWatchersCommentAdded(
+  taskId: string,
+  taskTitle: string,
+  projectName: string,
+  commenterName: string,
+  commentPreview: string,
+  excludeUserIds: string[] = []
+): Promise<void> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      watchers: {
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!task) return;
+
+  for (const watcher of task.watchers) {
+    // Don't notify excluded users (commenter, mentioned users who already got notified)
+    if (excludeUserIds.includes(watcher.id)) continue;
+
+    await createNotification({
+      userId: watcher.id,
+      type: "COMMENT_ADDED",
+      title: "New Comment",
+      message: `${commenterName} commented on "${taskTitle}" in ${projectName}: "${commentPreview.substring(0, 100)}${commentPreview.length > 100 ? "..." : ""}"`,
+      taskId,
+    });
+  }
+}
+
+/**
+ * Get watchers for a task
+ */
+export async function getTaskWatchers(taskId: string): Promise<string[]> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      watchers: {
+        select: { id: true },
+      },
+    },
+  });
+
+  return task?.watchers.map((w) => w.id) || [];
+}
+
+/**
  * Parse @mentions from comment content and return user IDs
  */
 export async function parseMentions(

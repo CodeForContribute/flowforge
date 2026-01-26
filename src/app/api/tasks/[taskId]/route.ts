@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { notifyWatchersTaskUpdated } from "@/services/notifications";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -212,6 +213,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         },
       },
     });
+
+    // Notify watchers if status changed
+    if (data.status && data.status !== existingTask.status) {
+      const updaterName = session.user.name || "Someone";
+      await notifyWatchersTaskUpdated(
+        taskId,
+        existingTask.title,
+        existingTask.project.name,
+        updaterName,
+        `changed status from ${existingTask.status} to ${data.status}`,
+        session.user.id
+      );
+    }
 
     return NextResponse.json({ task });
   } catch (error) {

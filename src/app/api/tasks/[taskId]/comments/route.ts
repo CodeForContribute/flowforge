@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { parseMentions, notifyMention } from "@/services/notifications";
+import { parseMentions, notifyMention, notifyWatchersCommentAdded } from "@/services/notifications";
 
 const createCommentSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -77,6 +77,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         );
       }
     }
+
+    // Notify watchers (exclude commenter and already-notified mentioned users)
+    const excludeFromWatcherNotification = [session.user.id, ...mentionedUserIds];
+    await notifyWatchersCommentAdded(
+      taskId,
+      task.title,
+      task.project.name,
+      commenterName,
+      data.content,
+      excludeFromWatcherNotification
+    );
 
     return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {

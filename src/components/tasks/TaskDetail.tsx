@@ -33,6 +33,8 @@ import {
   Clock,
   GitBranch,
   GitMerge,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
@@ -74,6 +76,8 @@ export function TaskDetail({ task }: TaskDetailProps) {
   const [prompt, setPrompt] = useState(task.generatedPrompt || "");
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
+  const [isTogglingWatch, setIsTogglingWatch] = useState(false);
 
   // Auto-refresh for active tasks to pick up webhook updates
   const shouldPoll = ACTIVE_STATUSES.includes(task.status);
@@ -96,6 +100,43 @@ export function TaskDetail({ task }: TaskDetailProps) {
   useEffect(() => {
     setPrompt(task.generatedPrompt || "");
   }, [task.generatedPrompt]);
+
+  // Check if user is watching this task
+  useEffect(() => {
+    async function checkWatchStatus() {
+      try {
+        const response = await fetch(`/api/tasks/${task.id}/watch`);
+        if (response.ok) {
+          const data = await response.json();
+          setIsWatching(data.isWatching);
+        }
+      } catch (error) {
+        console.error("Error checking watch status:", error);
+      }
+    }
+    checkWatchStatus();
+  }, [task.id]);
+
+  async function handleToggleWatch() {
+    setIsTogglingWatch(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/watch`, {
+        method: isWatching ? "DELETE" : "POST",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setIsWatching(data.isWatching);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to update watch status");
+      }
+    } catch (error) {
+      console.error("Error toggling watch:", error);
+      alert("An error occurred while updating watch status");
+    } finally {
+      setIsTogglingWatch(false);
+    }
+  }
 
   async function handleGeneratePrompt() {
     setIsGenerating(true);
@@ -274,6 +315,24 @@ export function TaskDetail({ task }: TaskDetailProps) {
               Execute
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleWatch}
+            disabled={isTogglingWatch}
+            className={cn(
+              isWatching && "bg-primary/10 text-primary border-primary/30"
+            )}
+          >
+            {isTogglingWatch ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : isWatching ? (
+              <EyeOff className="mr-2 h-4 w-4" />
+            ) : (
+              <Eye className="mr-2 h-4 w-4" />
+            )}
+            {isWatching ? "Watching" : "Watch"}
+          </Button>
           <Button
             variant="outline"
             size="icon"
