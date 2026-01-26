@@ -94,8 +94,13 @@ export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFor
         router.push(`/project/${projectId}/task/${data.task.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to save task");
+        const errorData = await response.json();
+        const errorMessage = typeof errorData.error === "string"
+          ? errorData.error
+          : Array.isArray(errorData.error)
+            ? errorData.error.map((e: { message?: string }) => e.message || String(e)).join(", ")
+            : "Failed to save task";
+        alert(errorMessage);
       }
     } catch (error) {
       console.error("Error saving task:", error);

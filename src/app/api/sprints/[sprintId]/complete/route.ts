@@ -108,7 +108,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+      const errorMessage = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
     console.error("Error completing sprint:", error);
     return NextResponse.json({ error: "Failed to complete sprint" }, { status: 500 });

@@ -12,11 +12,11 @@ const createTaskSchema = z.object({
   status: z.enum(["BACKLOG", "TODO", "IN_PROGRESS"]).default("BACKLOG"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
   taskType: z.enum(["EPIC", "STORY", "TASK", "SUBTASK", "BUG"]).default("TASK"),
-  storyPoints: z.number().int().min(0).max(100).optional(),
-  dueDate: z.string().datetime().optional(),
-  assigneeId: z.string().optional(),
-  sprintId: z.string().optional(),
-  parentTaskId: z.string().optional(),
+  storyPoints: z.number().int().min(0).max(100).nullable().optional(),
+  dueDate: z.string().datetime().nullable().optional(),
+  assigneeId: z.string().nullable().optional(),
+  sprintId: z.string().nullable().optional(),
+  parentTaskId: z.string().nullable().optional(),
   labelIds: z.array(z.string()).optional(),
 });
 
@@ -211,12 +211,12 @@ export async function POST(request: NextRequest) {
         status: data.status,
         priority: data.priority,
         taskType: data.taskType,
-        storyPoints: data.storyPoints,
+        storyPoints: data.storyPoints ?? undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         projectId: data.projectId,
-        assigneeId: data.assigneeId,
-        sprintId: data.sprintId,
-        parentTaskId: data.parentTaskId,
+        assigneeId: data.assigneeId || undefined,
+        sprintId: data.sprintId || undefined,
+        parentTaskId: data.parentTaskId || undefined,
         ...(data.labelIds && data.labelIds.length > 0 && {
           labels: { connect: data.labelIds.map((id) => ({ id })) },
         }),
@@ -232,7 +232,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ task }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+      const errorMessage = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
     console.error("Error creating task:", error);
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 });

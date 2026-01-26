@@ -176,7 +176,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ member }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+      const errorMessage = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
     console.error("Error adding member:", error);
     return NextResponse.json({ error: "Failed to add member" }, { status: 500 });

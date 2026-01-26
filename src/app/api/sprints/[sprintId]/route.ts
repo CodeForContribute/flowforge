@@ -143,7 +143,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ sprint });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+      const errorMessage = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
     console.error("Error updating sprint:", error);
     return NextResponse.json({ error: "Failed to update sprint" }, { status: 500 });
