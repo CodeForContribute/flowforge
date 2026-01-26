@@ -1,8 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { CodeGenerationResult, ReviewResponseResult, GeneratedFile } from "@/types";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 interface GenerateCodeOptions {
@@ -11,18 +11,15 @@ interface GenerateCodeOptions {
 }
 
 export async function generateCode(options: GenerateCodeOptions): Promise<CodeGenerationResult> {
-  const { prompt, model = "claude-sonnet-4-20250514" } = options;
+  const { prompt, model = "gpt-4o" } = options;
 
-  const response = await anthropic.messages.create({
+  const response = await openai.chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
       {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    system: `You are an expert software developer. You generate high-quality, production-ready code following best practices.
+        role: "system",
+        content: `You are an expert software developer. You generate high-quality, production-ready code following best practices.
 
 When implementing features:
 1. Follow existing code patterns and conventions in the codebase
@@ -31,16 +28,22 @@ When implementing features:
 4. Keep changes focused and minimal
 
 Always respond with a valid JSON object in the format specified in the prompt. Do not include any text before or after the JSON.`,
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
   });
 
   // Extract the text content
-  const textContent = response.content.find((block) => block.type === "text");
-  if (!textContent || textContent.type !== "text") {
+  const textContent = response.choices[0]?.message?.content;
+  if (!textContent) {
     throw new Error("No text content in response");
   }
 
   // Parse the JSON response
-  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = textContent.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("Could not find JSON in response");
   }
@@ -74,7 +77,7 @@ Always respond with a valid JSON object in the format specified in the prompt. D
     };
   } catch (error) {
     console.error("Error parsing agent response:", error);
-    console.error("Raw response:", textContent.text);
+    console.error("Raw response:", textContent);
     throw new Error("Failed to parse code generation response");
   }
 }
@@ -87,18 +90,15 @@ interface RespondToReviewOptions {
 export async function respondToReview(
   options: RespondToReviewOptions
 ): Promise<ReviewResponseResult> {
-  const { prompt, model = "claude-sonnet-4-20250514" } = options;
+  const { prompt, model = "gpt-4o" } = options;
 
-  const response = await anthropic.messages.create({
+  const response = await openai.chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
       {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    system: `You are an expert software developer responding to code review feedback. You make thoughtful improvements based on reviewer comments while maintaining code quality and consistency.
+        role: "system",
+        content: `You are an expert software developer responding to code review feedback. You make thoughtful improvements based on reviewer comments while maintaining code quality and consistency.
 
 When addressing review comments:
 1. Carefully read and understand each comment
@@ -107,16 +107,22 @@ When addressing review comments:
 4. Don't make unnecessary changes beyond what's requested
 
 Always respond with a valid JSON object in the format specified in the prompt. Do not include any text before or after the JSON.`,
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
   });
 
   // Extract the text content
-  const textContent = response.content.find((block) => block.type === "text");
-  if (!textContent || textContent.type !== "text") {
+  const textContent = response.choices[0]?.message?.content;
+  if (!textContent) {
     throw new Error("No text content in response");
   }
 
   // Parse the JSON response
-  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = textContent.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("Could not find JSON in response");
   }
@@ -138,7 +144,7 @@ Always respond with a valid JSON object in the format specified in the prompt. D
     };
   } catch (error) {
     console.error("Error parsing agent response:", error);
-    console.error("Raw response:", textContent.text);
+    console.error("Raw response:", textContent);
     throw new Error("Failed to parse review response");
   }
 }

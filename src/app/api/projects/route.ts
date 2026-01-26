@@ -10,7 +10,7 @@ const createProjectSchema = z.object({
   githubRepo: z.string().min(1),
   defaultBranch: z.string().default("main"),
   reviewers: z.array(z.string()).default([]),
-  agentModel: z.string().default("claude-sonnet-4-20250514"),
+  agentModel: z.string().default("gpt-4o"),
 });
 
 export async function GET() {

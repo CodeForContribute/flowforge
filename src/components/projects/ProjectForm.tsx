@@ -41,7 +41,7 @@ export function ProjectForm({ mode, initialData }: ProjectFormProps) {
     githubRepo: initialData?.githubRepo || "",
     defaultBranch: initialData?.defaultBranch || "main",
     reviewers: initialData?.reviewers?.join(", ") || "",
-    agentModel: initialData?.agentModel || "claude-sonnet-4-20250514",
+    agentModel: initialData?.agentModel || "gpt-4o",
   });
 
   useEffect(() => {
@@ -202,8 +202,9 @@ export function ProjectForm({ mode, initialData }: ProjectFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
-                <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
+                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
               </SelectContent>
             </Select>
           </div>
