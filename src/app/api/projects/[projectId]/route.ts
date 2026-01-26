@@ -11,6 +11,7 @@ const updateProjectSchema = z.object({
   defaultBranch: z.string().optional(),
   reviewers: z.array(z.string()).optional(),
   agentModel: z.string().optional(),
+  wipLimits: z.record(z.string(), z.number().min(0).max(100)).optional(),
 });
 
 interface RouteParams {

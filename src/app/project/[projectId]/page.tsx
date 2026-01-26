@@ -122,6 +122,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 ...task,
                 projectId: project.id,
               }))}
+              wipLimits={(project.wipLimits as Record<string, number>) || {}}
             />
           </main>
         </div>

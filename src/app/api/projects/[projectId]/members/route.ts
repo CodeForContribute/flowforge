@@ -6,8 +6,11 @@ import { z } from "zod";
 import { Octokit } from "@octokit/rest";
 
 const addMemberSchema = z.object({
-  githubUsername: z.string().min(1),
+  email: z.string().email().optional(),
+  githubUsername: z.string().min(1).optional(),
   role: z.enum(["ADMIN", "MEMBER"]).optional(),
+}).refine(data => data.email || data.githubUsername, {
+  message: "Either email or githubUsername is required",
 });
 
 interface RouteParams {
@@ -100,42 +103,61 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Look up user by GitHub username
-    // First check if user exists in our database
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { githubId: data.githubUsername },
-          // Also try to match by name if it looks like a GitHub username
-        ],
-      },
-    });
+    // Look up user by email or GitHub username
+    let user = null;
 
-    if (!user) {
-      // Try to fetch from GitHub to verify the username exists
-      const octokit = new Octokit({ auth: session.user.accessToken });
-      try {
-        const { data: githubUser } = await octokit.users.getByUsername({
-          username: data.githubUsername,
-        });
+    if (data.email) {
+      // Try to find by email first
+      user = await prisma.user.findUnique({
+        where: { email: data.email },
+      });
 
-        // Check if this GitHub user is already registered
-        user = await prisma.user.findFirst({
-          where: { githubId: String(githubUser.id) },
-        });
-
-        if (!user) {
-          return NextResponse.json(
-            { error: `User "${data.githubUsername}" has not yet signed up for FlowForge. They need to log in first.` },
-            { status: 400 }
-          );
-        }
-      } catch {
+      if (!user) {
         return NextResponse.json(
-          { error: `GitHub user "${data.githubUsername}" not found` },
-          { status: 404 }
+          { error: `No user found with email "${data.email}". They need to sign up for FlowForge first.` },
+          { status: 400 }
         );
       }
+    } else if (data.githubUsername) {
+      // Try to find by GitHub username
+      user = await prisma.user.findFirst({
+        where: { githubId: data.githubUsername },
+      });
+
+      if (!user) {
+        // Try to fetch from GitHub to verify the username exists
+        const octokit = new Octokit({ auth: session.user.accessToken });
+        try {
+          const { data: githubUser } = await octokit.users.getByUsername({
+            username: data.githubUsername,
+          });
+
+          // Check if this GitHub user is already registered
+          user = await prisma.user.findFirst({
+            where: { githubId: String(githubUser.id) },
+          });
+
+          if (!user) {
+            return NextResponse.json(
+              { error: `User "${data.githubUsername}" has not yet signed up for FlowForge. They need to log in first.` },
+              { status: 400 }
+            );
+          }
+        } catch {
+          return NextResponse.json(
+            { error: `GitHub user "${data.githubUsername}" not found` },
+            { status: 404 }
+          );
+        }
+      }
+    }
+
+    // Ensure user was found
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
     }
 
     // Check if user is already a member or owner

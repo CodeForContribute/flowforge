@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { parseMentions, notifyMention } from "@/services/notifications";
 
 const createCommentSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -24,13 +25,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const data = createCommentSchema.parse(body);
 
-    // Verify task ownership
+    // Get task with project info
     const task = await prisma.task.findFirst({
       where: {
         id: taskId,
         project: {
-          userId: session.user.id,
+          OR: [
+            { userId: session.user.id },
+            { members: { some: { userId: session.user.id } } },
+          ],
         },
+      },
+      include: {
+        project: true,
       },
     });
 
@@ -38,17 +45,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    // Parse @mentions from content
+    const mentionedUsers = await parseMentions(data.content, task.projectId);
+    const mentionedUserIds = mentionedUsers.map((u) => u.userId);
+
+    // Create comment with mentions
     const comment = await prisma.comment.create({
       data: {
         content: data.content,
         taskId,
         userId: session.user.id,
         isSystem: false,
+        mentions: mentionedUserIds,
       },
       include: {
         user: true,
       },
     });
+
+    // Send notifications to mentioned users (except the commenter)
+    const commenterName = session.user.name || "Someone";
+    for (const mentioned of mentionedUsers) {
+      if (mentioned.userId !== session.user.id) {
+        await notifyMention(
+          mentioned.userId,
+          commenterName,
+          taskId,
+          task.title,
+          task.project.name,
+          data.content
+        );
+      }
+    }
 
     return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {

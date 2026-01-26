@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ProjectSettingsLayout } from "@/components/settings/ProjectSettingsLayout";
 import { GeneralProjectSettings } from "@/components/settings/GeneralProjectSettings";
+import { WipLimitsSettings } from "@/components/settings/WipLimitsSettings";
 
 interface ProjectSettingsPageProps {
   params: Promise<{ projectId: string }>;
@@ -57,6 +58,13 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
                 defaultBranch: project.defaultBranch,
                 reviewers: project.reviewers,
                 agentModel: project.agentModel,
+              }}
+              isOwner={isOwner}
+            />
+            <WipLimitsSettings
+              project={{
+                id: project.id,
+                wipLimits: project.wipLimits as Record<string, number> | null,
               }}
               isOwner={isOwner}
             />

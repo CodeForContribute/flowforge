@@ -23,6 +23,7 @@ interface KanbanColumnProps {
   id: TaskStatus;
   title: string;
   tasks: Task[];
+  wipLimit?: number;
 }
 
 const columnStyles: Record<TaskStatus, {
@@ -71,12 +72,14 @@ const columnStyles: Record<TaskStatus, {
   },
 };
 
-export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
 
   const style = columnStyles[id] || columnStyles.BACKLOG;
+  const isOverLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length > wipLimit;
+  const isAtLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length === wipLimit;
 
   return (
     <div className="flex flex-col h-full min-w-[280px] max-w-[320px]" data-testid={`column-${id}`}>
@@ -85,16 +88,31 @@ export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
           <div className={cn("h-2 w-2 rounded-full", style.dotColor)} />
           <h3 className="font-semibold text-sm">{title}</h3>
         </div>
-        <span className="text-xs font-medium text-muted-foreground bg-muted/80 px-2 py-1 rounded-full min-w-[24px] text-center">
-          {tasks.length}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "text-xs font-medium px-2 py-1 rounded-full min-w-[24px] text-center transition-colors",
+              isOverLimit
+                ? "bg-destructive/20 text-destructive dark:bg-destructive/30"
+                : isAtLimit
+                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                : "bg-muted/80 text-muted-foreground"
+            )}
+          >
+            {tasks.length}
+            {wipLimit !== undefined && wipLimit > 0 && (
+              <span className="opacity-60">/{wipLimit}</span>
+            )}
+          </span>
+        </div>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
           "flex-1 p-2 rounded-xl overflow-y-auto transition-all duration-200",
           style.bgColor,
-          isOver && "ring-2 ring-primary/50 ring-dashed bg-primary/5"
+          isOver && "ring-2 ring-primary/50 ring-dashed bg-primary/5",
+          isOverLimit && "ring-2 ring-destructive/50"
         )}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>

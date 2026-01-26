@@ -43,9 +43,12 @@ interface Task {
   };
 }
 
+type WipLimits = Record<string, number>;
+
 interface KanbanBoardProps {
   tasks: Task[];
   projectId: string;
+  wipLimits?: WipLimits;
 }
 
 const columns: { id: TaskStatus; title: string }[] = [
@@ -55,7 +58,7 @@ const columns: { id: TaskStatus; title: string }[] = [
   { id: "MERGED", title: "Merged" },
 ];
 
-export function KanbanBoard({ tasks: initialTasks, projectId }: KanbanBoardProps) {
+export function KanbanBoard({ tasks: initialTasks, projectId, wipLimits = {} }: KanbanBoardProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const isDraggingRef = useRef(false);
@@ -161,6 +164,7 @@ export function KanbanBoard({ tasks: initialTasks, projectId }: KanbanBoardProps
             id={column.id}
             title={column.title}
             tasks={getTasksByStatus(column.id)}
+            wipLimit={wipLimits[column.id]}
           />
         ))}
       </div>

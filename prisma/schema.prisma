@@ -21,8 +21,36 @@ model User {
   comments      Comment[]
   assignedTasks Task[]    @relation("AssignedTasks")
   memberships   ProjectMember[]
+  preferences   UserPreferences?
+  notifications Notification[]
 
   @@map("users")
+}
+
+model UserPreferences {
+  id                    String    @id @default(cuid())
+
+  // Notification preferences
+  notifyPrCreated       Boolean   @default(true)
+  notifyPrMerged        Boolean   @default(true)
+  notifyReviewRequested Boolean   @default(true)
+  notifyTaskCompleted   Boolean   @default(true)
+  notifyTaskFailed      Boolean   @default(true)
+
+  // Privacy preferences
+  showActivityStatus    Boolean   @default(true)
+  shareUsageAnalytics   Boolean   @default(true)
+
+  // Theme preference (stored server-side as backup)
+  theme                 String    @default("system")
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
 
 model Project {
@@ -33,6 +61,7 @@ model Project {
   defaultBranch String    @default("main")
   reviewers     String[]  // GitHub usernames
   agentModel    String    @default("claude-sonnet-4-20250514")
+  wipLimits     Json?     // WIP limits per status: { "IN_PROGRESS": 3, "IN_REVIEW": 5 }
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -43,8 +72,34 @@ model Project {
   sprints       Sprint[]
   labels        Label[]
   members       ProjectMember[]
+  aiSettings    ProjectAISettings?
 
   @@map("projects")
+}
+
+model ProjectAISettings {
+  id                  String    @id @default(cuid())
+  aiEnabled           Boolean   @default(false)
+
+  // Provider API Keys (encrypted)
+  openaiApiKey        String?   // Encrypted OpenAI API key
+  anthropicApiKey     String?   // Encrypted Anthropic API key
+
+  // Provider settings
+  preferredProvider   String    @default("openai") // openai, anthropic
+
+  // Feature toggles
+  autoExecuteTasks    Boolean   @default(true)  // Auto-execute tasks when created
+  autoRespondReviews  Boolean   @default(true)  // Auto-respond to PR reviews
+  autoRespondComments Boolean   @default(true)  // Auto-respond to PR comments
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  projectId           String    @unique
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_ai_settings")
 }
 
 enum MemberRole {
@@ -175,6 +230,7 @@ model Task {
 
   comments      Comment[]
   executions    Execution[]
+  notifications Notification[]
 
   @@map("tasks")
 }
@@ -183,6 +239,7 @@ model Comment {
   id            String    @id @default(cuid())
   content       String    @db.Text
   isSystem      Boolean   @default(false)  // True for agent-generated comments
+  mentions      String[]  @default([])     // Array of mentioned user IDs
   createdAt     DateTime  @default(now())
 
   taskId        String
@@ -242,4 +299,36 @@ model WebhookEvent {
   createdAt     DateTime  @default(now())
 
   @@map("webhook_events")
+}
+
+enum NotificationType {
+  PR_CREATED
+  PR_MERGED
+  REVIEW_REQUESTED
+  TASK_COMPLETED
+  TASK_FAILED
+  MENTIONED
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  title       String
+  message     String           @db.Text
+  read        Boolean          @default(false)
+  emailSent   Boolean          @default(false)
+
+  // Related entities
+  taskId      String?
+  task        Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  projectId   String?
+
+  createdAt   DateTime         @default(now())
+
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
