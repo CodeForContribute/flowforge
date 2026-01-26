@@ -31,7 +31,7 @@ export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
   });
 
   return (
-    <div className="flex flex-col h-full min-w-[280px] max-w-[320px]">
+    <div className="flex flex-col h-full min-w-[280px] max-w-[320px]" data-testid={`column-${id}`}>
       <div className="flex items-center justify-between px-2 py-3">
         <h3 className="font-semibold text-sm">{title}</h3>
         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">

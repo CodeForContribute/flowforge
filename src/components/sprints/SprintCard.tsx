@@ -61,7 +61,7 @@ export function SprintCard({ sprint, onStart, onComplete, onDelete }: SprintCard
   const isOverdue = sprint.status === "ACTIVE" && now > endDate;
 
   return (
-    <Card className={isOverdue ? "border-destructive" : ""}>
+    <Card className={isOverdue ? "border-destructive" : ""} data-testid={`sprint-${sprint.id}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="space-y-1">

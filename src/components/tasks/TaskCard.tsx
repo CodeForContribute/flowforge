@@ -61,6 +61,7 @@ export function TaskCard({ task }: TaskCardProps) {
       ref={setNodeRef}
       style={style}
       className={cn(isDragging && "opacity-50")}
+      data-testid={`task-card-${task.id}`}
     >
       <Card className={cn(
         "hover:shadow-md transition-shadow",

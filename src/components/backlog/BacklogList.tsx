@@ -110,7 +110,7 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId }: Backlog
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="backlog-list">
       <TaskFilters projectId={projectId} />
 
       {/* Bulk Actions */}
