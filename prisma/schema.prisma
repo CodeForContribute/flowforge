@@ -209,6 +209,8 @@ enum ExecutionStep {
   REQUEST_REVIEWERS
   RESPOND_TO_REVIEW
   MERGE_PR
+  ANALYZE_COMMENT
+  RESPOND_TO_COMMENT
 }
 
 model Execution {

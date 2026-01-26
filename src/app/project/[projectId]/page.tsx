@@ -117,6 +117,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           </header>
           <main className="flex-1 overflow-hidden bg-muted/30">
             <KanbanBoard
+              projectId={project.id}
               tasks={project.tasks.map((task: typeof project.tasks[number]) => ({
                 ...task,
                 projectId: project.id,

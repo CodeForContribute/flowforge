@@ -22,6 +22,8 @@ import {
   XCircle,
   Loader2,
   Clock,
+  Search,
+  Reply,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,8 @@ const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch 
   REQUEST_REVIEWERS: { label: "Request Reviewers", icon: Users },
   RESPOND_TO_REVIEW: { label: "Respond to Review", icon: MessageSquare },
   MERGE_PR: { label: "Merge Pull Request", icon: GitMerge },
+  ANALYZE_COMMENT: { label: "Analyze Comment", icon: Search },
+  RESPOND_TO_COMMENT: { label: "Respond to Comment", icon: Reply },
 };
 
 const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckCircle; className: string }> = {

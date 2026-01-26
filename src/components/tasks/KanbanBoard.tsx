@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -16,6 +16,8 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskStatus, TaskPriority, TaskType } from "@/types";
+
+const POLL_INTERVAL = 5000; // 5 seconds
 
 interface Task {
   id: string;
@@ -43,6 +45,7 @@ interface Task {
 
 interface KanbanBoardProps {
   tasks: Task[];
+  projectId: string;
 }
 
 const columns: { id: TaskStatus; title: string }[] = [
@@ -55,9 +58,32 @@ const columns: { id: TaskStatus; title: string }[] = [
   { id: "MERGED", title: "Merged" },
 ];
 
-export function KanbanBoard({ tasks: initialTasks }: KanbanBoardProps) {
+export function KanbanBoard({ tasks: initialTasks, projectId }: KanbanBoardProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const isDraggingRef = useRef(false);
+
+  // Fetch latest tasks from API
+  const fetchTasks = useCallback(async () => {
+    // Don't fetch while dragging to avoid state conflicts
+    if (isDraggingRef.current) return;
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks`);
+      if (response.ok) {
+        const data = await response.json();
+        setTasks(data.tasks);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error);
+    }
+  }, [projectId]);
+
+  // Poll for updates
+  useEffect(() => {
+    const interval = setInterval(fetchTasks, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchTasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -71,6 +97,7 @@ export function KanbanBoard({ tasks: initialTasks }: KanbanBoardProps) {
   );
 
   function handleDragStart(event: DragStartEvent) {
+    isDraggingRef.current = true;
     const { active } = event;
     const task = tasks.find((t) => t.id === active.id);
     if (task) {
@@ -79,6 +106,7 @@ export function KanbanBoard({ tasks: initialTasks }: KanbanBoardProps) {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
+    isDraggingRef.current = false;
     const { active, over } = event;
     setActiveTask(null);
 

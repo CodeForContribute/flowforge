@@ -28,7 +28,23 @@ export type ExecutionStep =
   | "CREATE_PR"
   | "REQUEST_REVIEWERS"
   | "RESPOND_TO_REVIEW"
-  | "MERGE_PR";
+  | "MERGE_PR"
+  | "ANALYZE_COMMENT"
+  | "RESPOND_TO_COMMENT";
+
+// Comment classification types
+export type CommentIntent = "code_change" | "discussion";
+
+export interface CommentClassification {
+  intent: CommentIntent;
+  confidence: number;
+  reasoning: string;
+  suggestedAction: string;
+}
+
+export interface DiscussionReplyResult {
+  reply: string;
+}
 
 // Prisma model types (defined manually)
 export interface User {
@@ -272,6 +288,14 @@ export interface HandleReviewJob {
 export interface HandleApprovalJob {
   taskId: string;
   prNumber: number;
+}
+
+export interface HandlePRCommentJob {
+  taskId: string;
+  prNumber: number;
+  commentId: number;
+  commentBody: string;
+  commentAuthor: string;
 }
 
 // Kanban types

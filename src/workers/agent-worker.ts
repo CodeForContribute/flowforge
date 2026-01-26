@@ -1,7 +1,7 @@
 import { Worker, Job } from "bullmq";
 import { getRedisConnection } from "@/lib/redis";
-import { executeTask, handleReviewComments, handlePRApproval } from "@/services/execution";
-import type { ExecuteTaskJob, HandleReviewJob, HandleApprovalJob } from "@/types";
+import { executeTask, handleReviewComments, handlePRApproval, handlePRComment } from "@/services/execution";
+import type { ExecuteTaskJob, HandleReviewJob, HandleApprovalJob, HandlePRCommentJob } from "@/types";
 
 // Cast to any to avoid type conflicts between ioredis versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +67,26 @@ const approvalWorker = new Worker<HandleApprovalJob>(
   }
 );
 
+// PR comment handling worker (intelligent comment analysis)
+const prCommentWorker = new Worker<HandlePRCommentJob>(
+  "pr-comment-handling",
+  async (job: Job<HandlePRCommentJob>) => {
+    console.log(`Processing PR comment job ${job.id}: taskId=${job.data.taskId}, comment #${job.data.commentId}`);
+
+    try {
+      await handlePRComment(job.data);
+      console.log(`Completed PR comment job ${job.id}`);
+    } catch (error) {
+      console.error(`Failed PR comment job ${job.id}:`, error);
+      throw error;
+    }
+  },
+  {
+    connection,
+    concurrency: 2,
+  }
+);
+
 // Event handlers
 taskWorker.on("completed", (job) => {
   console.log(`Task job ${job.id} completed`);
@@ -92,6 +112,14 @@ approvalWorker.on("failed", (job, err) => {
   console.error(`Approval job ${job?.id} failed:`, err);
 });
 
+prCommentWorker.on("completed", (job) => {
+  console.log(`PR comment job ${job.id} completed`);
+});
+
+prCommentWorker.on("failed", (job, err) => {
+  console.error(`PR comment job ${job?.id} failed:`, err);
+});
+
 // Graceful shutdown
 async function shutdown() {
   console.log("Shutting down workers...");
@@ -99,6 +127,7 @@ async function shutdown() {
     taskWorker.close(),
     reviewWorker.close(),
     approvalWorker.close(),
+    prCommentWorker.close(),
   ]);
   console.log("Workers shut down");
   process.exit(0);
@@ -111,3 +140,4 @@ console.log("FlowForge workers started");
 console.log("- Task execution worker: listening");
 console.log("- Review handling worker: listening");
 console.log("- Approval handling worker: listening");
+console.log("- PR comment handling worker: listening (intelligent comment analysis)");

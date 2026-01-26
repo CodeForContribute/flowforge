@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Task, Comment, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority } from "@/types";
@@ -57,6 +57,10 @@ interface TaskDetailProps {
   task: TaskWithRelations;
 }
 
+// Status that indicate the task is actively being processed and needs polling
+const ACTIVE_STATUSES = ["GENERATING", "PR_OPEN", "IN_REVIEW", "CHANGES_REQUESTED"];
+const POLL_INTERVAL = 5000; // 5 seconds
+
 export function TaskDetail({ task }: TaskDetailProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -66,6 +70,28 @@ export function TaskDetail({ task }: TaskDetailProps) {
   const [prompt, setPrompt] = useState(task.generatedPrompt || "");
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
+
+  // Auto-refresh for active tasks to pick up webhook updates
+  const shouldPoll = ACTIVE_STATUSES.includes(task.status);
+
+  const refreshData = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  useEffect(() => {
+    if (!shouldPoll) return;
+
+    const interval = setInterval(() => {
+      refreshData();
+    }, POLL_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [shouldPoll, refreshData]);
+
+  // Update prompt state when task changes (from polling)
+  useEffect(() => {
+    setPrompt(task.generatedPrompt || "");
+  }, [task.generatedPrompt]);
 
   async function handleGeneratePrompt() {
     setIsGenerating(true);

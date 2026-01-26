@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { addReviewHandlingJob, addApprovalHandlingJob } from "@/lib/queue";
+import { addReviewHandlingJob, addApprovalHandlingJob, addPRCommentHandlingJob } from "@/lib/queue";
 import { Prisma } from "@prisma/client";
 
 // Verify GitHub webhook signature
@@ -62,6 +62,10 @@ export async function POST(request: NextRequest) {
       }
       case "pull_request_review_comment": {
         await handlePullRequestReviewComment(body);
+        break;
+      }
+      case "issue_comment": {
+        await handleIssueComment(body);
         break;
       }
       case "pull_request": {
@@ -242,4 +246,75 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
       console.log(`Task ${task.id} marked as CLOSED`);
     }
   }
+}
+
+async function handleIssueComment(body: Record<string, unknown>): Promise<void> {
+  const comment = body.comment as Record<string, unknown> | undefined;
+  const issue = body.issue as Record<string, unknown> | undefined;
+  const action = body.action as string | undefined;
+
+  // Only process new comments on PRs
+  if (!comment || !issue || action !== "created") {
+    return;
+  }
+
+  // Check if this is a PR (issues have pull_request field when they are PRs)
+  const pullRequestRef = issue.pull_request as Record<string, unknown> | undefined;
+  if (!pullRequestRef) {
+    // This is a regular issue comment, not a PR comment
+    return;
+  }
+
+  const commentBody = comment.body as string;
+  const commentId = comment.id as number;
+  const commentAuthor = (comment.user as Record<string, unknown>)?.login as string;
+  const prNumber = issue.number as number;
+
+  // Skip bot comments to avoid infinite loops
+  const authorAssociation = comment.author_association as string;
+  if (commentAuthor?.includes("[bot]") || authorAssociation === "NONE") {
+    // Optionally skip comments from bots or users with no association
+    // For now, we'll skip obvious bot comments
+    if (commentAuthor?.includes("[bot]")) {
+      console.log(`Skipping bot comment from ${commentAuthor}`);
+      return;
+    }
+  }
+
+  // Skip our own comments (FlowForge agent comments)
+  if (commentBody.includes("FlowForge AI agent")) {
+    console.log("Skipping FlowForge agent comment to avoid loops");
+    return;
+  }
+
+  // We need to find the task by PR number
+  // Since issue_comment doesn't give us the branch directly, we query by prNumber
+  const task = await prisma.task.findFirst({
+    where: {
+      prNumber: prNumber,
+    },
+  });
+
+  if (!task) {
+    console.log(`No task found for PR #${prNumber}`);
+    return;
+  }
+
+  // Only respond if the task is in an active state
+  const activeStatuses = ["PR_OPEN", "IN_REVIEW", "CHANGES_REQUESTED"];
+  if (!activeStatuses.includes(task.status)) {
+    console.log(`Task ${task.id} is in status ${task.status}, skipping comment handling`);
+    return;
+  }
+
+  // Queue the comment for intelligent handling
+  await addPRCommentHandlingJob({
+    taskId: task.id,
+    prNumber,
+    commentId,
+    commentBody,
+    commentAuthor,
+  });
+
+  console.log(`Queued PR comment handling for task ${task.id}: comment #${commentId} by @${commentAuthor}`);
 }
