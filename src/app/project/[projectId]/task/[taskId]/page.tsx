@@ -28,6 +28,30 @@ export default async function TaskPage({ params }: TaskPageProps) {
     },
     include: {
       project: true,
+      assignee: {
+        select: { id: true, name: true, email: true, image: true },
+      },
+      sprint: {
+        select: { id: true, name: true, status: true },
+      },
+      parentTask: {
+        select: { id: true, title: true, taskType: true, status: true },
+      },
+      subtasks: {
+        select: {
+          id: true,
+          title: true,
+          taskType: true,
+          status: true,
+          priority: true,
+          storyPoints: true,
+          assignee: {
+            select: { id: true, name: true, image: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      labels: true,
       comments: {
         include: {
           user: true,

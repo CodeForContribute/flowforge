@@ -26,6 +26,11 @@ export default async function EditTaskPage({ params }: EditTaskPageProps) {
         userId: session.user.id,
       },
     },
+    include: {
+      labels: {
+        select: { id: true, name: true, color: true },
+      },
+    },
   });
 
   if (!task) {
@@ -53,6 +58,13 @@ export default async function EditTaskPage({ params }: EditTaskPageProps) {
               description: task.description,
               status: task.status,
               priority: task.priority,
+              taskType: task.taskType,
+              storyPoints: task.storyPoints,
+              dueDate: task.dueDate,
+              assigneeId: task.assigneeId,
+              sprintId: task.sprintId,
+              parentTaskId: task.parentTaskId,
+              labels: task.labels,
             }}
           />
         </main>

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const createLabelSchema = z.object({
   name: z.string().min(1).max(50),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
 interface RouteParams {
@@ -39,12 +39,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const labels = await prisma.label.findMany({
       where: { projectId },
+      orderBy: { name: "asc" },
       include: {
         _count: {
           select: { tasks: true },
         },
       },
-      orderBy: { name: "asc" },
     });
 
     return NextResponse.json({ labels });
@@ -63,43 +63,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const body = await request.json();
-    const data = createLabelSchema.parse(body);
-
-    // Verify project access
+    // Verify project ownership
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
-        OR: [
-          { userId: session.user.id },
-          { members: { some: { userId: session.user.id, role: { in: ["OWNER", "ADMIN"] } } } },
-        ],
+        userId: session.user.id,
       },
     });
 
     if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
     }
 
-    // Check if label with same name already exists
-    const existingLabel = await prisma.label.findFirst({
+    const body = await request.json();
+    const data = createLabelSchema.parse(body);
+
+    // Check for duplicate label name
+    const existing = await prisma.label.findFirst({
       where: {
         projectId,
         name: data.name,
       },
     });
 
-    if (existingLabel) {
-      return NextResponse.json(
-        { error: "A label with this name already exists" },
-        { status: 400 }
-      );
+    if (existing) {
+      return NextResponse.json({ error: "Label with this name already exists" }, { status: 400 });
     }
 
     const label = await prisma.label.create({
       data: {
-        name: data.name,
-        color: data.color || "#6366f1",
+        ...data,
         projectId,
       },
     });
@@ -107,8 +100,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ label }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessage = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     console.error("Error creating label:", error);
     return NextResponse.json({ error: "Failed to create label" }, { status: 500 });

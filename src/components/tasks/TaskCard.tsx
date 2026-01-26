@@ -60,17 +60,25 @@ export function TaskCard({ task }: TaskCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(isDragging && "opacity-50")}
+      className={cn(
+        "group transition-all duration-200",
+        isDragging && "opacity-50 scale-105 rotate-2 z-50"
+      )}
       data-testid={`task-card-${task.id}`}
     >
-      <Card className={cn(
-        "hover:shadow-md transition-shadow",
-        isOverdue && "border-destructive"
-      )}>
+      <Card
+        className={cn(
+          "relative overflow-hidden transition-all duration-200",
+          "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
+          "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:from-transparent before:via-primary/0 before:to-transparent before:transition-all",
+          "hover:before:via-primary/60",
+          isOverdue && "border-destructive/50 bg-destructive/5"
+        )}
+      >
         <CardHeader className="p-3 pb-0">
           <div className="flex items-start gap-2">
             <button
-              className="mt-0.5 cursor-grab touch-none"
+              className="mt-0.5 cursor-grab touch-none opacity-0 group-hover:opacity-100 transition-opacity"
               {...attributes}
               {...listeners}
             >
@@ -83,7 +91,7 @@ export function TaskCard({ task }: TaskCardProps) {
                 )}
                 <Link
                   href={`/project/${task.projectId}/task/${task.id}`}
-                  className="font-medium text-sm hover:underline truncate"
+                  className="font-medium text-sm hover:text-primary transition-colors truncate"
                 >
                   {task.title}
                 </Link>
@@ -94,13 +102,13 @@ export function TaskCard({ task }: TaskCardProps) {
                     <Badge
                       key={label.id}
                       style={{ backgroundColor: label.color }}
-                      className="text-white text-[10px] px-1 py-0"
+                      className="text-white text-[10px] px-1.5 py-0 rounded-full"
                     >
                       {label.name}
                     </Badge>
                   ))}
                   {task.labels.length > 2 && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                       +{task.labels.length - 2}
                     </Badge>
                   )}
@@ -112,9 +120,9 @@ export function TaskCard({ task }: TaskCardProps) {
         <CardContent className="p-3 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <PriorityBadge priority={task.priority} />
+              <PriorityBadge priority={task.priority} size="sm" />
               {task.storyPoints && (
-                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                <span className="flex items-center gap-0.5 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full">
                   <Hash className="h-3 w-3" />
                   {task.storyPoints}
                 </span>
@@ -122,10 +130,14 @@ export function TaskCard({ task }: TaskCardProps) {
             </div>
             <div className="flex items-center gap-2">
               {dueDate && (
-                <span className={cn(
-                  "flex items-center gap-1 text-xs",
-                  isOverdue ? "text-destructive" : "text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full",
+                    isOverdue
+                      ? "text-destructive bg-destructive/10"
+                      : "text-muted-foreground bg-muted/50"
+                  )}
+                >
                   <Calendar className="h-3 w-3" />
                   {format(dueDate, "MMM d")}
                 </span>
@@ -135,7 +147,8 @@ export function TaskCard({ task }: TaskCardProps) {
                   href={task.prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <GitPullRequest className="h-3 w-3" />
                   #{task.prNumber}
@@ -148,9 +161,9 @@ export function TaskCard({ task }: TaskCardProps) {
                 </span>
               )}
               {task.assignee && (
-                <Avatar className="h-5 w-5">
+                <Avatar className="h-5 w-5 ring-1 ring-border/50">
                   <AvatarImage src={task.assignee.image || undefined} />
-                  <AvatarFallback className="text-[10px]">
+                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
                     {task.assignee.name?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>

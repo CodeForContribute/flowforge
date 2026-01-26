@@ -30,15 +30,18 @@ import {
   User as UserIcon,
   ArrowUp,
   Hash,
+  Clock,
+  GitBranch,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type TaskWithRelations = Task & {
   project: Project;
   comments: (Comment & { user: User | null })[];
   executions: Execution[];
-  assignee?: User | null;
+  assignee?: { id: string; name: string | null; email: string; image: string | null } | null;
   sprint?: { id: string; name: string; status: string } | null;
   parentTask?: { id: string; title: string; taskType: TaskType; status: TaskStatus } | null;
   subtasks?: {
@@ -192,15 +195,15 @@ export function TaskDetail({ task }: TaskDetailProps) {
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate) && !["MERGED", "CLOSED"].includes(task.status);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Parent Task Breadcrumb */}
       {task.parentTask && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
           <ArrowUp className="h-4 w-4" />
           <TaskTypeBadge type={task.parentTask.taskType} size="sm" />
           <Link
             href={`/project/${task.projectId}/task/${task.parentTask.id}`}
-            className="hover:underline"
+            className="hover:text-primary transition-colors"
           >
             {task.parentTask.title}
           </Link>
@@ -208,9 +211,9 @@ export function TaskDetail({ task }: TaskDetailProps) {
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
             <TaskTypeBadge type={task.taskType} />
             <h1 className="text-2xl font-bold">{task.title}</h1>
           </div>
@@ -218,7 +221,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
             <StatusBadge status={task.status} />
             <PriorityBadge priority={task.priority} />
             {task.storyPoints && (
-              <Badge variant="outline" className="gap-1">
+              <Badge variant="outline" className="gap-1 bg-muted/50">
                 <Hash className="h-3 w-3" />
                 {task.storyPoints} pts
               </Badge>
@@ -228,7 +231,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors bg-muted/50 px-2 py-1 rounded-full"
               >
                 <GitPullRequest className="h-4 w-4" />
                 PR #{task.prNumber}
@@ -238,7 +241,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
           </div>
           {/* Labels */}
           {task.labels && task.labels.length > 0 && (
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap">
               {task.labels.map((label) => (
                 <Badge
                   key={label.id}
@@ -258,10 +261,10 @@ export function TaskDetail({ task }: TaskDetailProps) {
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            {task.generatedPrompt ? "Regenerate Prompt" : "Generate Prompt"}
+            {task.generatedPrompt ? "Regenerate" : "Generate Prompt"}
           </Button>
           {canExecute && (
-            <Button size="sm" onClick={handleExecute} disabled={isExecuting}>
+            <Button variant="gradient" size="sm" onClick={handleExecute} disabled={isExecuting}>
               {isExecuting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -277,7 +280,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
           >
             <Edit className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={handleDelete} disabled={isDeleting}>
+          <Button variant="outline" size="icon" onClick={handleDelete} disabled={isDeleting} className="text-destructive hover:text-destructive hover:bg-destructive/10">
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </Button>
         </div>
@@ -288,16 +291,16 @@ export function TaskDetail({ task }: TaskDetailProps) {
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {/* Assignee */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 <UserIcon className="h-3 w-3" />
                 Assignee
               </div>
               {task.assignee ? (
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-6 w-6">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
+                  <Avatar className="h-6 w-6 ring-1 ring-border/50">
                     <AvatarImage src={task.assignee.image || undefined} />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
                       {task.assignee.name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
@@ -309,18 +312,18 @@ export function TaskDetail({ task }: TaskDetailProps) {
             </div>
 
             {/* Sprint */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 <Target className="h-3 w-3" />
                 Sprint
               </div>
               {task.sprint ? (
                 <Link
                   href={`/project/${task.projectId}/sprint/${task.sprint.id}`}
-                  className="text-sm font-medium hover:underline flex items-center gap-1"
+                  className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50"
                 >
                   {task.sprint.name}
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-[10px]">
                     {task.sprint.status}
                   </Badge>
                 </Link>
@@ -330,25 +333,31 @@ export function TaskDetail({ task }: TaskDetailProps) {
             </div>
 
             {/* Due Date */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 <Calendar className="h-3 w-3" />
                 Due Date
               </div>
               {dueDate ? (
-                <span className={`text-sm font-medium ${isOverdue ? "text-destructive" : ""}`}>
+                <div className={cn(
+                  "text-sm font-medium p-2 rounded-lg",
+                  isOverdue ? "bg-destructive/10 text-destructive" : "bg-muted/30"
+                )}>
                   {format(dueDate, "MMM d, yyyy")}
-                  {isOverdue && <span className="ml-1">(Overdue)</span>}
-                </span>
+                  {isOverdue && <span className="ml-1 text-xs">(Overdue)</span>}
+                </div>
               ) : (
                 <span className="text-sm text-muted-foreground">No due date</span>
               )}
             </div>
 
             {/* Created */}
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Created</div>
-              <span className="text-sm">{formatDateTime(task.createdAt)}</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <Clock className="h-3 w-3" />
+                Created
+              </div>
+              <span className="text-sm p-2 rounded-lg bg-muted/30 block">{formatDateTime(task.createdAt)}</span>
             </div>
           </div>
         </CardContent>
@@ -360,7 +369,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
           <CardTitle className="text-lg">Description</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="whitespace-pre-wrap">{task.description}</p>
+          <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">{task.description}</p>
         </CardContent>
       </Card>
 
@@ -383,7 +392,9 @@ export function TaskDetail({ task }: TaskDetailProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Bot className="h-5 w-5" />
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                <Bot className="h-4 w-4 text-white" />
+              </div>
               Generated Prompt
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => setShowPrompt(!showPrompt)}>
@@ -408,36 +419,40 @@ export function TaskDetail({ task }: TaskDetailProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           {task.comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No comments yet.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>
           ) : (
             <div className="space-y-4">
               {task.comments.map((comment: TaskWithRelations["comments"][number]) => (
-                <div key={comment.id} className="flex gap-3">
-                  <Avatar className="h-8 w-8">
-                    {comment.user ? (
-                      <>
-                        <AvatarImage src={comment.user.image || undefined} />
-                        <AvatarFallback>{comment.user.name?.charAt(0) || "U"}</AvatarFallback>
-                      </>
-                    ) : (
-                      <>
-                        <AvatarFallback>
-                          <Bot className="h-4 w-4" />
-                        </AvatarFallback>
-                      </>
-                    )}
-                  </Avatar>
-                  <div className="flex-1">
+                <div key={comment.id} className="flex gap-3 group">
+                  <div className="relative">
+                    <Avatar className="h-8 w-8 ring-2 ring-border/30">
+                      {comment.user ? (
+                        <>
+                          <AvatarImage src={comment.user.image || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {comment.user.name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </>
+                      ) : (
+                        <>
+                          <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600">
+                            <Bot className="h-4 w-4 text-white" />
+                          </AvatarFallback>
+                        </>
+                      )}
+                    </Avatar>
+                  </div>
+                  <div className="flex-1 border-l-2 border-border/50 pl-3">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">
                         {comment.isSystem ? "FlowForge Agent" : comment.user?.name || "Unknown"}
                       </span>
-                      {comment.isSystem && <Badge variant="secondary">System</Badge>}
+                      {comment.isSystem && <Badge variant="ai" className="text-[10px]">AI</Badge>}
                       <span className="text-xs text-muted-foreground">
                         {formatDateTime(comment.createdAt)}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm whitespace-pre-wrap">{comment.content}</p>
+                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{comment.content}</p>
                   </div>
                 </div>
               ))}
@@ -463,18 +478,21 @@ export function TaskDetail({ task }: TaskDetailProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Created:</span>{" "}
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Created:</span>
               <span>{formatDateTime(task.createdAt)}</span>
             </div>
-            <div>
-              <span className="text-muted-foreground">Updated:</span>{" "}
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Updated:</span>
               <span>{formatDateTime(task.updatedAt)}</span>
             </div>
             {task.branchName && (
-              <div className="col-span-2">
-                <span className="text-muted-foreground">Branch:</span>{" "}
-                <code className="bg-muted px-1 py-0.5 rounded">{task.branchName}</code>
+              <div className="col-span-2 flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Branch:</span>
+                <code className="bg-muted px-2 py-0.5 rounded text-xs font-mono">{task.branchName}</code>
               </div>
             )}
           </div>

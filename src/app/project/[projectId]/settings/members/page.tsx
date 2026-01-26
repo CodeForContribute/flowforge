@@ -2,13 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { MemberList } from "@/components/projects/MemberList";
-import { InviteMemberForm } from "@/components/projects/InviteMemberForm";
+import { ProjectSettingsLayout } from "@/components/settings/ProjectSettingsLayout";
+import { MembersSettings } from "@/components/settings/MembersSettings";
 import { MemberRole } from "@/types";
 
 interface MembersPageProps {
@@ -87,43 +84,16 @@ export default async function MembersPage({ params }: MembersPageProps) {
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="border-b bg-background px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/project/${projectId}/settings`}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <div>
-                  <h1 className="text-xl font-bold flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Team Members
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {allMembers.length} members
-                  </p>
-                </div>
-              </div>
-            </div>
-          </header>
-          <main className="flex-1 overflow-auto p-6">
-            <div className="max-w-3xl space-y-6">
-              {isOwner && <InviteMemberForm projectId={projectId} />}
-
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold">Current Members</h2>
-                <MemberList
-                  members={allMembers}
-                  projectId={projectId}
-                  currentUserId={session.user.id}
-                  isOwner={isOwner}
-                />
-              </div>
-            </div>
-          </main>
-        </div>
+        <main className="flex-1 overflow-y-auto bg-muted/30">
+          <ProjectSettingsLayout projectId={projectId} projectName={project.name}>
+            <MembersSettings
+              projectId={projectId}
+              members={allMembers}
+              currentUserId={session.user.id}
+              isOwner={isOwner}
+            />
+          </ProjectSettingsLayout>
+        </main>
       </div>
     </div>
   );

@@ -61,6 +61,16 @@ export function SprintSelector({
     fetchSprints();
   }, [projectId, filterStatus]);
 
+  // Check if current value exists in sprint list (sprint might have been deleted)
+  const valueExists = !value || sprints.some((s) => s.id === value);
+
+  // If the sprint was deleted, auto-update to null
+  useEffect(() => {
+    if (!loading && value && !sprints.some((s) => s.id === value)) {
+      onChange(null);
+    }
+  }, [loading, value, sprints, onChange]);
+
   if (loading) {
     return (
       <Select disabled>
@@ -71,9 +81,11 @@ export function SprintSelector({
     );
   }
 
+  const effectiveValue = valueExists ? (value || "none") : "none";
+
   return (
     <Select
-      value={value || "none"}
+      value={effectiveValue}
       onValueChange={(val) => onChange(val === "none" ? null : val)}
     >
       <SelectTrigger>

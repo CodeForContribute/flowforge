@@ -24,6 +24,7 @@ import {
   Clock,
   Search,
   Reply,
+  History,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -32,23 +33,23 @@ interface ExecutionLogsProps {
   executions: Execution[];
 }
 
-const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch }> = {
-  CREATE_BRANCH: { label: "Create Branch", icon: GitBranch },
-  GENERATE_CODE: { label: "Generate Code", icon: Code },
-  COMMIT_FILES: { label: "Commit Files", icon: FileCode },
-  CREATE_PR: { label: "Create Pull Request", icon: GitPullRequest },
-  REQUEST_REVIEWERS: { label: "Request Reviewers", icon: Users },
-  RESPOND_TO_REVIEW: { label: "Respond to Review", icon: MessageSquare },
-  MERGE_PR: { label: "Merge Pull Request", icon: GitMerge },
-  ANALYZE_COMMENT: { label: "Analyze Comment", icon: Search },
-  RESPOND_TO_COMMENT: { label: "Respond to Comment", icon: Reply },
+const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch; color: string }> = {
+  CREATE_BRANCH: { label: "Create Branch", icon: GitBranch, color: "text-cyan-500" },
+  GENERATE_CODE: { label: "Generate Code", icon: Code, color: "text-violet-500" },
+  COMMIT_FILES: { label: "Commit Files", icon: FileCode, color: "text-blue-500" },
+  CREATE_PR: { label: "Create Pull Request", icon: GitPullRequest, color: "text-green-500" },
+  REQUEST_REVIEWERS: { label: "Request Reviewers", icon: Users, color: "text-amber-500" },
+  RESPOND_TO_REVIEW: { label: "Respond to Review", icon: MessageSquare, color: "text-orange-500" },
+  MERGE_PR: { label: "Merge Pull Request", icon: GitMerge, color: "text-emerald-500" },
+  ANALYZE_COMMENT: { label: "Analyze Comment", icon: Search, color: "text-indigo-500" },
+  RESPOND_TO_COMMENT: { label: "Respond to Comment", icon: Reply, color: "text-pink-500" },
 };
 
-const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckCircle; className: string }> = {
-  PENDING: { label: "Pending", icon: Clock, className: "text-muted-foreground" },
-  RUNNING: { label: "Running", icon: Loader2, className: "text-blue-500 animate-spin" },
-  COMPLETED: { label: "Completed", icon: CheckCircle, className: "text-green-500" },
-  FAILED: { label: "Failed", icon: XCircle, className: "text-red-500" },
+const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckCircle; className: string; bgColor: string }> = {
+  PENDING: { label: "Pending", icon: Clock, className: "text-muted-foreground", bgColor: "bg-muted" },
+  RUNNING: { label: "Running", icon: Loader2, className: "text-blue-500 animate-spin", bgColor: "bg-blue-100 dark:bg-blue-900/30" },
+  COMPLETED: { label: "Completed", icon: CheckCircle, className: "text-green-500", bgColor: "bg-green-100 dark:bg-green-900/30" },
+  FAILED: { label: "Failed", icon: XCircle, className: "text-red-500", bgColor: "bg-red-100 dark:bg-red-900/30" },
 };
 
 export function ExecutionLogs({ executions }: ExecutionLogsProps) {
@@ -72,20 +73,24 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Execution History</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <History className="h-5 w-5 text-muted-foreground" />
+          Execution History
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="relative">
           {/* Timeline line */}
-          <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
+          <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-border to-border" />
 
-          <div className="space-y-4">
-            {sortedExecutions.map((execution) => {
+          <div className="space-y-3">
+            {sortedExecutions.map((execution, index) => {
               const step = stepConfig[execution.step];
               const status = statusConfig[execution.status];
               const StepIcon = step.icon;
               const StatusIcon = status.icon;
               const isOpen = openItems.has(execution.id);
+              const isFirst = index === 0;
 
               return (
                 <Collapsible
@@ -94,18 +99,35 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
                   onOpenChange={() => toggleItem(execution.id)}
                 >
                   <CollapsibleTrigger className="w-full">
-                    <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className={cn(
+                      "flex items-center gap-4 p-3 rounded-xl transition-all duration-200",
+                      "hover:bg-muted/50",
+                      isFirst && "bg-muted/30"
+                    )}>
                       {/* Status indicator */}
-                      <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background border">
+                      <div className={cn(
+                        "relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
+                        status.bgColor,
+                        execution.status === "COMPLETED" ? "border-green-500" :
+                        execution.status === "FAILED" ? "border-red-500" :
+                        execution.status === "RUNNING" ? "border-blue-500" : "border-border"
+                      )}>
                         <StatusIcon className={cn("h-4 w-4", status.className)} />
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 text-left">
                         <div className="flex items-center gap-2">
-                          <StepIcon className="h-4 w-4 text-muted-foreground" />
+                          <StepIcon className={cn("h-4 w-4", step.color)} />
                           <span className="font-medium text-sm">{step.label}</span>
-                          <Badge variant={execution.status === "FAILED" ? "destructive" : "secondary"}>
+                          <Badge
+                            variant={
+                              execution.status === "FAILED" ? "destructive" :
+                              execution.status === "COMPLETED" ? "success" :
+                              execution.status === "RUNNING" ? "info" : "secondary"
+                            }
+                            className="text-[10px]"
+                          >
                             {status.label}
                           </Badge>
                         </div>
@@ -119,19 +141,19 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
                       {/* Expand icon */}
                       <ChevronDown
                         className={cn(
-                          "h-4 w-4 text-muted-foreground transition-transform",
+                          "h-4 w-4 text-muted-foreground transition-transform duration-200",
                           isOpen && "rotate-180"
                         )}
                       />
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="ml-12 pl-4 border-l space-y-3 pb-4">
+                    <div className="ml-12 pl-4 border-l-2 border-border/50 space-y-3 pb-4 animate-fade-in">
                       {/* Input */}
                       {execution.input != null ? (
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">Input:</span>
-                          <pre className="mt-1 bg-muted p-2 rounded text-xs overflow-x-auto">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Input</span>
+                          <pre className="mt-1.5 bg-muted/50 p-3 rounded-lg text-xs overflow-x-auto font-mono border border-border/50">
                             {JSON.stringify(execution.input, null, 2)}
                           </pre>
                         </div>
@@ -140,8 +162,8 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
                       {/* Output */}
                       {execution.output != null ? (
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">Output:</span>
-                          <pre className="mt-1 bg-muted p-2 rounded text-xs overflow-x-auto">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Output</span>
+                          <pre className="mt-1.5 bg-muted/50 p-3 rounded-lg text-xs overflow-x-auto font-mono border border-border/50">
                             {JSON.stringify(execution.output, null, 2)}
                           </pre>
                         </div>
@@ -150,8 +172,8 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
                       {/* Error */}
                       {execution.error && (
                         <div>
-                          <span className="text-xs font-medium text-destructive">Error:</span>
-                          <pre className="mt-1 bg-destructive/10 text-destructive p-2 rounded text-xs overflow-x-auto">
+                          <span className="text-xs font-medium text-destructive uppercase tracking-wider">Error</span>
+                          <pre className="mt-1.5 bg-destructive/10 text-destructive p-3 rounded-lg text-xs overflow-x-auto font-mono border border-destructive/20">
                             {execution.error}
                           </pre>
                         </div>
@@ -159,7 +181,8 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
 
                       {/* Timing */}
                       {execution.completedAt && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
                           Completed: {formatDateTime(execution.completedAt)}
                         </p>
                       )}

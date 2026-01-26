@@ -25,24 +25,76 @@ interface KanbanColumnProps {
   tasks: Task[];
 }
 
+const columnStyles: Record<TaskStatus, {
+  dotColor: string;
+  bgColor: string;
+}> = {
+  BACKLOG: {
+    dotColor: "bg-slate-400",
+    bgColor: "bg-slate-50/50 dark:bg-slate-900/20",
+  },
+  TODO: {
+    dotColor: "bg-slate-500",
+    bgColor: "bg-slate-50/50 dark:bg-slate-900/20",
+  },
+  IN_PROGRESS: {
+    dotColor: "bg-blue-500",
+    bgColor: "bg-blue-50/30 dark:bg-blue-900/10",
+  },
+  GENERATING: {
+    dotColor: "bg-violet-500",
+    bgColor: "bg-violet-50/30 dark:bg-violet-900/10",
+  },
+  PR_OPEN: {
+    dotColor: "bg-cyan-500",
+    bgColor: "bg-cyan-50/30 dark:bg-cyan-900/10",
+  },
+  IN_REVIEW: {
+    dotColor: "bg-amber-500",
+    bgColor: "bg-amber-50/30 dark:bg-amber-900/10",
+  },
+  CHANGES_REQUESTED: {
+    dotColor: "bg-orange-500",
+    bgColor: "bg-orange-50/30 dark:bg-orange-900/10",
+  },
+  APPROVED: {
+    dotColor: "bg-emerald-500",
+    bgColor: "bg-emerald-50/30 dark:bg-emerald-900/10",
+  },
+  MERGED: {
+    dotColor: "bg-green-500",
+    bgColor: "bg-green-50/30 dark:bg-green-900/10",
+  },
+  CLOSED: {
+    dotColor: "bg-gray-400",
+    bgColor: "bg-gray-50/50 dark:bg-gray-900/20",
+  },
+};
+
 export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
 
+  const style = columnStyles[id] || columnStyles.BACKLOG;
+
   return (
     <div className="flex flex-col h-full min-w-[280px] max-w-[320px]" data-testid={`column-${id}`}>
       <div className="flex items-center justify-between px-2 py-3">
-        <h3 className="font-semibold text-sm">{title}</h3>
-        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+        <div className="flex items-center gap-2">
+          <div className={cn("h-2 w-2 rounded-full", style.dotColor)} />
+          <h3 className="font-semibold text-sm">{title}</h3>
+        </div>
+        <span className="text-xs font-medium text-muted-foreground bg-muted/80 px-2 py-1 rounded-full min-w-[24px] text-center">
           {tasks.length}
         </span>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "flex-1 p-2 rounded-lg bg-muted/50 overflow-y-auto",
-          isOver && "bg-muted"
+          "flex-1 p-2 rounded-xl overflow-y-auto transition-all duration-200",
+          style.bgColor,
+          isOver && "ring-2 ring-primary/50 ring-dashed bg-primary/5"
         )}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -52,7 +104,7 @@ export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
             ))}
             {tasks.length === 0 && (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                No tasks
+                <p className="opacity-60">No tasks</p>
               </div>
             )}
           </div>

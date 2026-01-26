@@ -49,11 +49,8 @@ interface KanbanBoardProps {
 }
 
 const columns: { id: TaskStatus; title: string }[] = [
-  { id: "BACKLOG", title: "Backlog" },
   { id: "TODO", title: "To Do" },
   { id: "IN_PROGRESS", title: "In Progress" },
-  { id: "GENERATING", title: "Generating" },
-  { id: "PR_OPEN", title: "PR Open" },
   { id: "IN_REVIEW", title: "In Review" },
   { id: "MERGED", title: "Merged" },
 ];
@@ -168,7 +165,11 @@ export function KanbanBoard({ tasks: initialTasks, projectId }: KanbanBoardProps
         ))}
       </div>
       <DragOverlay>
-        {activeTask ? <TaskCard task={activeTask} /> : null}
+        {activeTask ? (
+          <div className="rotate-3 scale-105">
+            <TaskCard task={activeTask} />
+          </div>
+        ) : null}
       </DragOverlay>
     </DndContext>
   );
