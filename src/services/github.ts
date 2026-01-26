@@ -47,6 +47,29 @@ export async function getRepoBranches(
   }));
 }
 
+export async function branchExists(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branchName: string
+): Promise<boolean> {
+  const octokit = getOctokit(accessToken);
+
+  try {
+    await octokit.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branchName}`,
+    });
+    return true;
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "status" in error && error.status === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function createBranch(
   accessToken: string,
   owner: string,
@@ -70,6 +93,44 @@ export async function createBranch(
     ref: `refs/heads/${branchName}`,
     sha: ref.object.sha,
   });
+}
+
+export async function getOpenPullRequestForBranch(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branchName: string
+): Promise<GitHubPullRequest | null> {
+  const octokit = getOctokit(accessToken);
+
+  const { data } = await octokit.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${branchName}`,
+    state: "open",
+  });
+
+  if (data.length === 0) {
+    return null;
+  }
+
+  const pr = data[0];
+  return {
+    number: pr.number,
+    title: pr.title,
+    body: pr.body,
+    html_url: pr.html_url,
+    state: pr.state as "open" | "closed",
+    merged: false, // Open PRs are not merged
+    head: {
+      ref: pr.head.ref,
+      sha: pr.head.sha,
+    },
+    base: {
+      ref: pr.base.ref,
+      sha: pr.base.sha,
+    },
+  };
 }
 
 export async function getFileContent(
