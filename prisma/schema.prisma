@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  githubId      String    @unique
+  accessToken   String    // Encrypted GitHub access token
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  projects      Project[]
+  comments      Comment[]
+  assignedTasks Task[]    @relation("AssignedTasks")
+  memberships   ProjectMember[]
+
+  @@map("users")
+}
+
+model Project {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  githubRepo    String    // Format: owner/repo
+  defaultBranch String    @default("main")
+  reviewers     String[]  // GitHub usernames
+  agentModel    String    @default("claude-sonnet-4-20250514")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tasks         Task[]
+  sprints       Sprint[]
+  labels        Label[]
+  members       ProjectMember[]
+
+  @@map("projects")
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model ProjectMember {
+  id        String     @id @default(cuid())
+  role      MemberRole @default(MEMBER)
+  createdAt DateTime   @default(now())
+
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+enum SprintStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+model Sprint {
+  id        String       @id @default(cuid())
+  name      String
+  goal      String?
+  startDate DateTime
+  endDate   DateTime
+  status    SprintStatus @default(PLANNING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@map("sprints")
+}
+
+model Label {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@unique([projectId, name])
+  @@map("labels")
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  GENERATING
+  PR_OPEN
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  MERGED
+  CLOSED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskType {
+  EPIC
+  STORY
+  TASK
+  SUBTASK
+  BUG
+}
+
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String
+  status        TaskStatus   @default(BACKLOG)
+  priority      TaskPriority @default(MEDIUM)
+  taskType      TaskType     @default(TASK)
+  storyPoints   Int?
+  dueDate       DateTime?
+
+  // GitHub PR info
+  branchName    String?
+  prNumber      Int?
+  prUrl         String?
+
+  // Generated content
+  generatedPrompt String?    @db.Text
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Project relation
+  projectId     String
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Assignee relation
+  assigneeId    String?
+  assignee      User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+
+  // Sprint relation
+  sprintId      String?
+  sprint        Sprint?      @relation(fields: [sprintId], references: [id])
+
+  // Task hierarchy
+  parentTaskId  String?
+  parentTask    Task?        @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  subtasks      Task[]       @relation("TaskHierarchy")
+
+  // Labels (many-to-many)
+  labels        Label[]
+
+  comments      Comment[]
+  executions    Execution[]
+
+  @@map("tasks")
+}
+
+model Comment {
+  id            String    @id @default(cuid())
+  content       String    @db.Text
+  isSystem      Boolean   @default(false)  // True for agent-generated comments
+  createdAt     DateTime  @default(now())
+
+  taskId        String
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("comments")
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ExecutionStep {
+  CREATE_BRANCH
+  GENERATE_CODE
+  COMMIT_FILES
+  CREATE_PR
+  REQUEST_REVIEWERS
+  RESPOND_TO_REVIEW
+  MERGE_PR
+}
+
+model Execution {
+  id            String           @id @default(cuid())
+  status        ExecutionStatus  @default(PENDING)
+  step          ExecutionStep
+
+  input         Json?            // Input data for this step
+  output        Json?            // Output/result of this step
+  error         String?          @db.Text
+
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+
+  taskId        String
+  task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("executions")
+}
+
+model WebhookEvent {
+  id            String    @id @default(cuid())
+  eventType     String    // e.g., pull_request_review, pull_request_review_comment
+  payload       Json
+  processed     Boolean   @default(false)
+  processedAt   DateTime?
+  error         String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  @@map("webhook_events")
+}
