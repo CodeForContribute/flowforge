@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -34,6 +35,12 @@ export function Navbar() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+
+          {session?.user && (
+            <>
+              <NotificationBell />
+            </>
+          )}
 
           {session?.user && (
             <DropdownMenu>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +19,70 @@ import {
 import { Input } from "@/components/ui/input";
 import { Shield, Trash2, LogOut, Key, AlertTriangle, Loader2 } from "lucide-react";
 
+interface PrivacyPreferences {
+  showActivityStatus: boolean;
+  shareUsageAnalytics: boolean;
+}
+
 export function SecuritySettings() {
   const router = useRouter();
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState<PrivacyPreferences>({
+    showActivityStatus: true,
+    shareUsageAnalytics: true,
+  });
+
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const response = await fetch("/api/user/preferences");
+        if (response.ok) {
+          const data = await response.json();
+          setPrivacy({
+            showActivityStatus: data.preferences.showActivityStatus,
+            shareUsageAnalytics: data.preferences.shareUsageAnalytics,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching preferences:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPreferences();
+  }, []);
+
+  const togglePrivacySetting = async (key: keyof PrivacyPreferences) => {
+    const newValue = !privacy[key];
+    setUpdating(key);
+
+    // Optimistic update
+    setPrivacy((prev) => ({ ...prev, [key]: newValue }));
+
+    try {
+      const response = await fetch("/api/user/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: newValue }),
+      });
+
+      if (!response.ok) {
+        // Revert on error
+        setPrivacy((prev) => ({ ...prev, [key]: !newValue }));
+      }
+    } catch (error) {
+      console.error("Error updating preference:", error);
+      // Revert on error
+      setPrivacy((prev) => ({ ...prev, [key]: !newValue }));
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   async function handleDeleteAccount() {
     if (deleteConfirmation !== "DELETE") return;
@@ -99,7 +158,16 @@ export function SecuritySettings() {
                 Show when you're active to team members
               </p>
             </div>
-            <Switch defaultChecked />
+            <div className="flex items-center gap-2">
+              {updating === "showActivityStatus" && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                checked={privacy.showActivityStatus}
+                onCheckedChange={() => togglePrivacySetting("showActivityStatus")}
+                disabled={loading || updating !== null}
+              />
+            </div>
           </div>
           <div className="flex items-center justify-between py-3">
             <div>
@@ -108,7 +176,16 @@ export function SecuritySettings() {
                 Help improve FlowForge by sharing anonymous usage data
               </p>
             </div>
-            <Switch defaultChecked />
+            <div className="flex items-center gap-2">
+              {updating === "shareUsageAnalytics" && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                checked={privacy.shareUsageAnalytics}
+                onCheckedChange={() => togglePrivacySetting("shareUsageAnalytics")}
+                disabled={loading || updating !== null}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

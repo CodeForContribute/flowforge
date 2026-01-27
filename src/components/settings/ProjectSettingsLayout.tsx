@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Users, Tag, AlertTriangle } from "lucide-react";
+import { Settings, Users, Tag, AlertTriangle, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProjectSettingsLayoutProps {
@@ -23,6 +23,11 @@ export function ProjectSettingsLayout({
       title: "General",
       href: `/project/${projectId}/settings`,
       icon: Settings,
+    },
+    {
+      title: "AI Integrations",
+      href: `/project/${projectId}/settings/ai`,
+      icon: Sparkles,
     },
     {
       title: "Members",

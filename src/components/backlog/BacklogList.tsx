@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { TaskTypeBadge } from "@/components/tasks/TaskTypeBadge";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { Target, Loader2 } from "lucide-react";
 import { TaskStatus, TaskPriority, TaskType, SprintStatus } from "@/types";
+import { cn } from "@/lib/utils";
 
 interface Task {
   id: string;
@@ -61,6 +62,12 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId }: Backlog
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Update tasks when filter changes (props change)
+  useEffect(() => {
+    setTasks(initialTasks);
+    setSelectedTasks(new Set()); // Clear selections when filters change
+  }, [initialTasks]);
 
   function toggleTaskSelection(taskId: string) {
     setSelectedTasks((prev) => {
@@ -199,7 +206,11 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId }: Backlog
                   <div className="flex-1 min-w-0">
                     <Link
                       href={`/project/${projectId}/task/${task.id}`}
-                      className="font-medium hover:underline block truncate"
+                      className={cn(
+                        "font-medium hover:underline block truncate",
+                        (task.status === "MERGED" || task.status === "CLOSED") &&
+                          "line-through text-muted-foreground"
+                      )}
                     >
                       {task.title}
                     </Link>

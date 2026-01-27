@@ -18,6 +18,13 @@ import {
 import { generateCode, respondToReview, classifyComment, generateDiscussionReply, generateCodeFromComment } from "./agent";
 import { generateReviewResponsePrompt } from "./prompt-generator";
 import type { GeneratedFile } from "@/types";
+import {
+  notifyPRCreated,
+  notifyPRMerged,
+  notifyReviewRequested,
+  notifyTaskCompleted,
+  notifyTaskFailed,
+} from "./notifications";
 
 interface ExecuteTaskOptions {
   taskId: string;
@@ -286,6 +293,19 @@ ${task.description}
         await completeExecution(executionId, { prNumber, prUrl, reused: false });
         await addSystemComment(taskId, `Created pull request [#${prNumber}](${prUrl})`);
       }
+
+      // Send notifications for PR creation and task completion
+      const notificationContext = {
+        taskId,
+        taskTitle: task.title,
+        projectName: project.name,
+        prNumber,
+        prUrl,
+        branchName,
+      };
+
+      await notifyPRCreated(project.userId, notificationContext);
+      await notifyTaskCompleted(project.userId, notificationContext);
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       throw error;
@@ -318,6 +338,19 @@ ${task.description}
       where: { id: taskId },
       data: { status: "IN_PROGRESS" },
     });
+
+    // Notify user about task failure
+    await notifyTaskFailed(
+      project.userId,
+      {
+        taskId,
+        taskTitle: task.title,
+        projectName: project.name,
+        branchName,
+      },
+      error instanceof Error ? error.message : "Unknown error"
+    );
+
     throw error;
   }
 }
@@ -363,6 +396,19 @@ export async function handleReviewComments(
     where: { id: taskId },
     data: { status: "CHANGES_REQUESTED" },
   });
+
+  // Notify user about changes requested
+  await notifyReviewRequested(
+    project.userId,
+    {
+      taskId,
+      taskTitle: task.title,
+      projectName: project.name,
+      prNumber,
+      prUrl: task.prUrl || undefined,
+      branchName: task.branchName || undefined,
+    }
+  );
 
   // Get review comments
   const comments = await getPullRequestComments(accessToken, owner, repo, prNumber);
@@ -516,6 +562,16 @@ export async function handlePRApproval(options: HandlePRApprovalOptions): Promis
     });
 
     await addSystemComment(taskId, `Pull request #${prNumber} has been merged!`);
+
+    // Notify user about PR merge
+    await notifyPRMerged(project.userId, {
+      taskId,
+      taskTitle: task.title,
+      projectName: project.name,
+      prNumber,
+      prUrl: task.prUrl || undefined,
+      branchName: task.branchName || project.defaultBranch,
+    });
   } catch (error) {
     await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
     throw error;

@@ -3,6 +3,11 @@ import { createHmac } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { addReviewHandlingJob, addApprovalHandlingJob, addPRCommentHandlingJob } from "@/lib/queue";
 import { Prisma } from "@prisma/client";
+import {
+  notifyPRCreated,
+  notifyPRMerged,
+  notifyReviewRequested,
+} from "@/services/notifications";
 
 // Verify GitHub webhook signature
 function verifyWebhookSignature(
@@ -110,12 +115,16 @@ async function handlePullRequestReview(body: Record<string, unknown>): Promise<v
   const reviewState = review.state as string;
   const prNumber = pullRequest.number as number;
   const headRef = (pullRequest.head as Record<string, unknown>).ref as string;
+  const reviewerName = (review.user as Record<string, unknown>)?.login as string;
 
-  // Find task by branch name
+  // Find task by branch name with project info
   const task = await prisma.task.findFirst({
     where: {
       branchName: headRef,
       prNumber: prNumber,
+    },
+    include: {
+      project: true,
     },
   });
 
@@ -133,6 +142,20 @@ async function handlePullRequestReview(body: Record<string, unknown>): Promise<v
 
     console.log(`Queued approval handling for task ${task.id}`);
   } else if (reviewState === "changes_requested") {
+    // Send notification for changes requested
+    await notifyReviewRequested(
+      task.project.userId,
+      {
+        taskId: task.id,
+        taskTitle: task.title,
+        projectName: task.project.name,
+        prNumber,
+        prUrl: task.prUrl || undefined,
+        branchName: task.branchName || undefined,
+      },
+      reviewerName
+    );
+
     // Queue review response
     await addReviewHandlingJob({
       taskId: task.id,
@@ -197,18 +220,49 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
   const prNumber = pullRequest.number as number;
   const headRef = (pullRequest.head as Record<string, unknown>).ref as string;
   const merged = pullRequest.merged as boolean;
+  const prUrl = pullRequest.html_url as string;
 
-  // Find task by branch name
+  // Find task by branch name with project info
   const task = await prisma.task.findFirst({
     where: {
       branchName: headRef,
       prNumber: prNumber,
+    },
+    include: {
+      project: true,
     },
   });
 
   if (!task) {
     console.log(`No task found for PR #${prNumber} branch ${headRef}`);
     return;
+  }
+
+  // Handle PR opened
+  if (action === "opened") {
+    // Update task with PR info if not already set
+    if (!task.prNumber) {
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          prNumber,
+          prUrl,
+          status: "PR_OPEN"
+        },
+      });
+    }
+
+    // Send notification for PR created
+    await notifyPRCreated(task.project.userId, {
+      taskId: task.id,
+      taskTitle: task.title,
+      projectName: task.project.name,
+      prNumber,
+      prUrl,
+      branchName: headRef,
+    });
+
+    console.log(`PR opened notification sent for task ${task.id}`);
   }
 
   if (action === "closed") {
@@ -225,6 +279,16 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
           content: `Pull request #${prNumber} was merged!`,
           isSystem: true,
         },
+      });
+
+      // Send notification for PR merged
+      await notifyPRMerged(task.project.userId, {
+        taskId: task.id,
+        taskTitle: task.title,
+        projectName: task.project.name,
+        prNumber,
+        prUrl: prUrl || task.prUrl || undefined,
+        branchName: task.branchName || task.project.defaultBranch,
       });
 
       console.log(`Task ${task.id} marked as MERGED`);

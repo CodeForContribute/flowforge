@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 
 interface ExecutionLogsProps {
   executions: Execution[];
+  maxVisible?: number;
 }
 
 const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch; color: string }> = {
@@ -52,8 +53,9 @@ const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckC
   FAILED: { label: "Failed", icon: XCircle, className: "text-red-500", bgColor: "bg-red-100 dark:bg-red-900/30" },
 };
 
-export function ExecutionLogs({ executions }: ExecutionLogsProps) {
+export function ExecutionLogs({ executions, maxVisible = 5 }: ExecutionLogsProps) {
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
 
   function toggleItem(id: string) {
     const newSet = new Set(openItems);
@@ -70,6 +72,10 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
+  // Limit visible executions unless showAll is true
+  const visibleExecutions = showAll ? sortedExecutions : sortedExecutions.slice(0, maxVisible);
+  const hiddenCount = sortedExecutions.length - maxVisible;
+
   return (
     <Card>
       <CardHeader>
@@ -84,7 +90,7 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
           <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-border to-border" />
 
           <div className="space-y-3">
-            {sortedExecutions.map((execution, index) => {
+            {visibleExecutions.map((execution, index) => {
               const step = stepConfig[execution.step];
               const status = statusConfig[execution.status];
               const StepIcon = step.icon;
@@ -191,6 +197,17 @@ export function ExecutionLogs({ executions }: ExecutionLogsProps) {
                 </Collapsible>
               );
             })}
+
+            {/* Show more/less button */}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="ml-12 flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <History className="h-4 w-4" />
+                {showAll ? "Show less" : `Show ${hiddenCount} more execution${hiddenCount > 1 ? "s" : ""}`}
+              </button>
+            )}
           </div>
         </div>
       </CardContent>

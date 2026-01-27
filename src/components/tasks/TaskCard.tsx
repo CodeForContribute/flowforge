@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { TaskTypeBadge } from "./TaskTypeBadge";
 import { GitPullRequest, MessageSquare, GripVertical, Calendar, Hash } from "lucide-react";
-import { TaskPriority, TaskType } from "@/types";
+import { TaskPriority, TaskType, TaskStatus } from "@/types";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
 
@@ -18,6 +18,7 @@ interface TaskCardProps {
     id: string;
     title: string;
     description: string;
+    status: TaskStatus;
     priority: TaskPriority;
     taskType?: TaskType;
     storyPoints?: number | null;
@@ -72,7 +73,8 @@ export function TaskCard({ task }: TaskCardProps) {
           "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
           "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:from-transparent before:via-primary/0 before:to-transparent before:transition-all",
           "hover:before:via-primary/60",
-          isOverdue && "border-destructive/50 bg-destructive/5"
+          isOverdue && "border-destructive/50 bg-destructive/5",
+          (task.status === "MERGED" || task.status === "CLOSED") && "opacity-60"
         )}
       >
         <CardHeader className="p-3 pb-0">
@@ -91,7 +93,11 @@ export function TaskCard({ task }: TaskCardProps) {
                 )}
                 <Link
                   href={`/project/${task.projectId}/task/${task.id}`}
-                  className="font-medium text-sm hover:text-primary transition-colors truncate"
+                  className={cn(
+                    "font-medium text-sm hover:text-primary transition-colors truncate",
+                    (task.status === "MERGED" || task.status === "CLOSED") &&
+                      "line-through text-muted-foreground"
+                  )}
                 >
                   {task.title}
                 </Link>

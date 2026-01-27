@@ -1,7 +1,17 @@
 import { Worker, Job } from "bullmq";
 import { getRedisConnection } from "@/lib/redis";
 import { executeTask, handleReviewComments, handlePRApproval, handlePRComment } from "@/services/execution";
+import { getProjectAIConfig } from "@/lib/ai-config";
+import { prisma } from "@/lib/prisma";
 import type { ExecuteTaskJob, HandleReviewJob, HandleApprovalJob, HandlePRCommentJob } from "@/types";
+
+async function getProjectIdFromTaskId(taskId: string): Promise<string | null> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { projectId: true },
+  });
+  return task?.projectId ?? null;
+}
 
 // Cast to any to avoid type conflicts between ioredis versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,6 +24,24 @@ const taskWorker = new Worker<ExecuteTaskJob>(
     console.log(`Processing task execution job ${job.id}: taskId=${job.data.taskId}`);
 
     try {
+      // Check if AI is enabled for this project
+      const projectId = await getProjectIdFromTaskId(job.data.taskId);
+      if (!projectId) {
+        console.log(`Task ${job.data.taskId} not found, skipping`);
+        return;
+      }
+
+      const aiConfig = await getProjectAIConfig(projectId);
+      if (!aiConfig.aiEnabled) {
+        console.log(`AI disabled for project ${projectId}, skipping task execution`);
+        return;
+      }
+
+      if (!aiConfig.autoExecuteTasks) {
+        console.log(`Auto-execute disabled for project ${projectId}, skipping task execution`);
+        return;
+      }
+
       await executeTask(job.data);
       console.log(`Completed task execution job ${job.id}`);
     } catch (error) {
@@ -34,6 +62,24 @@ const reviewWorker = new Worker<HandleReviewJob>(
     console.log(`Processing review handling job ${job.id}: taskId=${job.data.taskId}`);
 
     try {
+      // Check if AI is enabled for this project
+      const projectId = await getProjectIdFromTaskId(job.data.taskId);
+      if (!projectId) {
+        console.log(`Task ${job.data.taskId} not found, skipping`);
+        return;
+      }
+
+      const aiConfig = await getProjectAIConfig(projectId);
+      if (!aiConfig.aiEnabled) {
+        console.log(`AI disabled for project ${projectId}, skipping review handling`);
+        return;
+      }
+
+      if (!aiConfig.autoRespondReviews) {
+        console.log(`Auto-respond reviews disabled for project ${projectId}, skipping`);
+        return;
+      }
+
       await handleReviewComments(job.data);
       console.log(`Completed review handling job ${job.id}`);
     } catch (error) {
@@ -54,6 +100,19 @@ const approvalWorker = new Worker<HandleApprovalJob>(
     console.log(`Processing approval handling job ${job.id}: taskId=${job.data.taskId}`);
 
     try {
+      // Check if AI is enabled for this project
+      const projectId = await getProjectIdFromTaskId(job.data.taskId);
+      if (!projectId) {
+        console.log(`Task ${job.data.taskId} not found, skipping`);
+        return;
+      }
+
+      const aiConfig = await getProjectAIConfig(projectId);
+      if (!aiConfig.aiEnabled) {
+        console.log(`AI disabled for project ${projectId}, skipping approval handling`);
+        return;
+      }
+
       await handlePRApproval(job.data);
       console.log(`Completed approval handling job ${job.id}`);
     } catch (error) {
@@ -74,6 +133,24 @@ const prCommentWorker = new Worker<HandlePRCommentJob>(
     console.log(`Processing PR comment job ${job.id}: taskId=${job.data.taskId}, comment #${job.data.commentId}`);
 
     try {
+      // Check if AI is enabled for this project
+      const projectId = await getProjectIdFromTaskId(job.data.taskId);
+      if (!projectId) {
+        console.log(`Task ${job.data.taskId} not found, skipping`);
+        return;
+      }
+
+      const aiConfig = await getProjectAIConfig(projectId);
+      if (!aiConfig.aiEnabled) {
+        console.log(`AI disabled for project ${projectId}, skipping PR comment handling`);
+        return;
+      }
+
+      if (!aiConfig.autoRespondComments) {
+        console.log(`Auto-respond comments disabled for project ${projectId}, skipping`);
+        return;
+      }
+
       await handlePRComment(job.data);
       console.log(`Completed PR comment job ${job.id}`);
     } catch (error) {

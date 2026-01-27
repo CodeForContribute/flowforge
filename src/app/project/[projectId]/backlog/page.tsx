@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Plus, ArrowLeft } from "lucide-react";
@@ -11,10 +12,21 @@ import { BacklogList } from "@/components/backlog/BacklogList";
 
 interface BacklogPageProps {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{
+    search?: string;
+    assignee?: string;
+    sprint?: string;
+    labels?: string;
+    type?: string;
+    status?: string;
+    priority?: string;
+    overdue?: string;
+  }>;
 }
 
-export default async function BacklogPage({ params }: BacklogPageProps) {
+export default async function BacklogPage({ params, searchParams }: BacklogPageProps) {
   const { projectId } = await params;
+  const filters = await searchParams;
   const session = await getServerSession(authOptions);
 
   if (!session) {
@@ -35,12 +47,62 @@ export default async function BacklogPage({ params }: BacklogPageProps) {
     notFound();
   }
 
-  // Fetch backlog tasks (tasks without a sprint assigned)
+  // Build filter conditions
+  const whereConditions: Prisma.TaskWhereInput = {
+    projectId,
+    sprintId: null,
+  };
+
+  // Search filter
+  if (filters.search) {
+    whereConditions.OR = [
+      { title: { contains: filters.search, mode: "insensitive" } },
+      { description: { contains: filters.search, mode: "insensitive" } },
+    ];
+  }
+
+  // Assignee filter
+  if (filters.assignee) {
+    whereConditions.assigneeId = filters.assignee;
+  }
+
+  // Type filter
+  if (filters.type) {
+    whereConditions.taskType = filters.type as Prisma.EnumTaskTypeFilter["equals"];
+  }
+
+  // Status filter
+  if (filters.status) {
+    whereConditions.status = filters.status as Prisma.EnumTaskStatusFilter["equals"];
+  }
+
+  // Priority filter
+  if (filters.priority) {
+    whereConditions.priority = filters.priority as Prisma.EnumTaskPriorityFilter["equals"];
+  }
+
+  // Labels filter
+  if (filters.labels) {
+    const labelIds = filters.labels.split(",").filter(Boolean);
+    if (labelIds.length > 0) {
+      whereConditions.labels = {
+        some: {
+          id: { in: labelIds },
+        },
+      };
+    }
+  }
+
+  // Overdue filter
+  if (filters.overdue === "true") {
+    whereConditions.dueDate = {
+      lt: new Date(),
+    };
+  }
+
+  // Fetch backlog tasks with filters
   const backlogTasks = await prisma.task.findMany({
-    where: {
-      projectId,
-      sprintId: null,
-    },
+    where: whereConditions,
     include: {
       assignee: {
         select: { id: true, name: true, image: true },
