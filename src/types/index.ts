@@ -313,3 +313,207 @@ export interface SessionUser {
   image: string | null;
   accessToken: string;
 }
+
+// AI Sprint Planning types
+export interface TeamMemberCapacity {
+  userId: string;
+  name: string;
+  availableHours: number;
+  skills?: string[];
+}
+
+export interface SprintPlanRequest {
+  sprintId: string;
+  backlogTaskIds?: string[];
+  teamCapacity: TeamMemberCapacity[];
+  sprintGoal?: string;
+  maxStoryPoints?: number;
+}
+
+export interface SuggestedTask {
+  taskId: string;
+  title: string;
+  storyPoints: number | null;
+  priority: TaskPriority;
+  taskType: TaskType;
+  suggestedAssigneeId: string | null;
+  suggestedAssigneeName: string | null;
+  reasoning: string;
+  order: number;
+}
+
+export interface AIRiskFactor {
+  type: "dependency" | "complexity" | "capacity" | "unknown" | "deadline";
+  description: string;
+  severity: "low" | "medium" | "high";
+  affectedTaskIds?: string[];
+}
+
+export interface SprintPlanSuggestion {
+  suggestedTasks: SuggestedTask[];
+  totalStoryPoints: number;
+  capacityUtilization: number;
+  riskScore: number;
+  riskFactors: AIRiskFactor[];
+  summary: string;
+  recommendations: string[];
+}
+
+// AI Task Estimation types
+export interface TimeEstimate {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+export interface SimilarTask {
+  taskId: string;
+  title: string;
+  actualPoints: number;
+  actualCompletionTime: number | null;
+  similarity: number;
+  taskType: TaskType;
+}
+
+export interface ComplexityFactor {
+  factor: string;
+  impact: "low" | "medium" | "high";
+  description: string;
+}
+
+export interface TaskEstimation {
+  storyPoints: number;
+  confidence: "low" | "medium" | "high";
+  timeEstimate: TimeEstimate;
+  reasoning: string;
+  similarTasks: SimilarTask[];
+  complexityFactors: ComplexityFactor[];
+  suggestions?: string[];
+}
+
+// AI Retrospective types
+export interface Achievement {
+  title: string;
+  description: string;
+  impact: "low" | "medium" | "high";
+  relatedTaskIds?: string[];
+}
+
+export interface Challenge {
+  title: string;
+  description: string;
+  severity: "low" | "medium" | "high";
+  rootCause?: string;
+  relatedTaskIds?: string[];
+}
+
+export interface Recommendation {
+  title: string;
+  description: string;
+  category: "process" | "technical" | "team" | "planning";
+  priority: "low" | "medium" | "high";
+  actionable: boolean;
+}
+
+export interface ActionItem {
+  title: string;
+  description: string;
+  owner?: string;
+  dueDate?: string;
+  category: "process" | "technical" | "team" | "planning";
+}
+
+export interface SprintMetrics {
+  plannedPoints: number;
+  completedPoints: number;
+  velocity: number;
+  completionRate: number;
+  totalTasks: number;
+  completedTasks: number;
+  addedMidSprint: number;
+  removedMidSprint: number;
+  averageTaskAge: number;
+  blockedTime: number;
+}
+
+export interface VelocityTrend {
+  sprintName: string;
+  velocity: number;
+  completionRate: number;
+}
+
+export interface SprintRetrospective {
+  summary: string;
+  achievements: Achievement[];
+  challenges: Challenge[];
+  recommendations: Recommendation[];
+  actionItems: ActionItem[];
+  metrics: SprintMetrics;
+  velocityTrend: VelocityTrend[];
+  teamSentiment: "positive" | "neutral" | "negative";
+  overallScore: number;
+}
+
+// AI Risk Assessment types
+export interface TaskRisk {
+  taskId: string;
+  title: string;
+  riskScore: number;
+  riskLevel: "low" | "medium" | "high" | "critical";
+  riskFactors: ComplexityFactor[];
+  mitigations: string[];
+}
+
+export interface RiskRecommendation {
+  priority: "low" | "medium" | "high";
+  recommendation: string;
+  affectedTaskIds: string[];
+  potentialImpact: string;
+}
+
+export interface CapacityAnalysis {
+  totalCapacityHours: number;
+  estimatedWorkHours: number;
+  utilizationRate: number;
+  overCommitted: boolean;
+  bufferHours: number;
+}
+
+export interface DependencyNode {
+  taskId: string;
+  title: string;
+  status: TaskStatus;
+  storyPoints: number | null;
+  inDegree: number;
+  outDegree: number;
+  isCritical: boolean;
+}
+
+export interface Dependency {
+  fromTaskId: string;
+  fromTaskTitle: string;
+  toTaskId: string;
+  toTaskTitle: string;
+  type: "blocks" | "requires" | "relates_to";
+  confidence: number;
+  reasoning: string;
+}
+
+export interface DependencyGraph {
+  nodes: DependencyNode[];
+  edges: Dependency[];
+  criticalPath: string[];
+  orphanTasks: string[];
+}
+
+export interface SprintRiskAssessment {
+  overallRiskScore: number;
+  overallRiskLevel: "low" | "medium" | "high" | "critical";
+  successProbability: number;
+  taskRisks: TaskRisk[];
+  sprintRiskFactors: ComplexityFactor[];
+  criticalTasks: string[];
+  recommendations: RiskRecommendation[];
+  dependencyGraph: DependencyGraph;
+  capacityAnalysis: CapacityAnalysis;
+}
