@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Palette, Shield, Bell, Github } from "lucide-react";
+import { User, Palette, Shield, Bell, Github, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useTour } from "@/hooks/useTour";
+import { sectionTours } from "@/components/onboarding/tour-steps";
 
 const settingsNav = [
   {
@@ -44,6 +47,7 @@ interface SettingsLayoutProps {
 
 export function SettingsLayout({ children }: SettingsLayoutProps) {
   const pathname = usePathname();
+  const { restartTour, toursCompleted } = useTour();
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-fade-in">
@@ -77,6 +81,35 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
               </Link>
             );
           })}
+
+          {/* Tour Section */}
+          <div className="pt-4 mt-4 border-t border-border/50">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">
+              Guided Tours
+            </h4>
+            <div className="space-y-1">
+              {sectionTours.map((tour) => {
+                const isCompleted = toursCompleted[tour.id];
+                return (
+                  <Button
+                    key={tour.id}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => restartTour(tour.id)}
+                    className="w-full justify-between text-muted-foreground hover:text-foreground group"
+                  >
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <span className="text-xs">{tour.name}</span>
+                    </span>
+                    {isCompleted && (
+                      <Check className="h-3.5 w-3.5 text-green-500" />
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
         </nav>
 
         {/* Content */}

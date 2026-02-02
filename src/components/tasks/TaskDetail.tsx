@@ -16,6 +16,12 @@ import { SubtasksList } from "./SubtasksList";
 import { PromptPreview } from "./PromptPreview";
 import { ExecutionLogs } from "./ExecutionLogs";
 import { MentionInput, CommentContent } from "./MentionInput";
+import { AIEstimateBadge } from "@/components/task";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   GitPullRequest,
   ExternalLink,
@@ -268,6 +274,20 @@ export function TaskDetail({ task }: TaskDetailProps) {
                 {task.storyPoints} pts
               </Badge>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div data-tour-id="ai-estimate-badge">
+                  <AIEstimateBadge
+                    taskId={task.id}
+                    currentStoryPoints={task.storyPoints}
+                    onEstimateApplied={() => router.refresh()}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>AI analyzes task complexity, finds similar completed tasks, and suggests story points with confidence levels</p>
+              </TooltipContent>
+            </Tooltip>
             {task.prUrl && (
               <a
                 href={task.prUrl}
@@ -297,7 +317,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleGeneratePrompt} disabled={isGenerating}>
+          <Button variant="outline" size="sm" onClick={handleGeneratePrompt} disabled={isGenerating} data-tour-id="generate-prompt-button">
             {isGenerating ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -306,7 +326,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
             {task.generatedPrompt ? "Regenerate" : "Generate Prompt"}
           </Button>
           {canExecute && (
-            <Button variant="gradient" size="sm" onClick={handleExecute} disabled={isExecuting}>
+            <Button variant="gradient" size="sm" onClick={handleExecute} disabled={isExecuting} data-tour-id="execute-button">
               {isExecuting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

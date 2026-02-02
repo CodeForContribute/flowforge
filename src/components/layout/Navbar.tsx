@@ -34,18 +34,20 @@ export function Navbar() {
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <div data-tour-id="theme-toggle">
+            <ThemeToggle />
+          </div>
 
           {session?.user && (
-            <>
+            <div data-tour-id="notification-bell">
               <NotificationBell />
-            </>
+            </div>
           )}
 
           {session?.user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full" data-tour-id="user-menu">
                   <Avatar className="h-9 w-9 ring-2 ring-border/50 transition-all hover:ring-primary/50">
                     <AvatarImage src={session.user.image || undefined} alt={session.user.name || ""} />
                     <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-medium">

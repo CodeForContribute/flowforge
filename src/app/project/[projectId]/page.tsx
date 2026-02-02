@@ -101,7 +101,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     Metrics
                   </Link>
                 </Button>
-                <Button asChild>
+                <Button asChild data-tour-id="new-task-button">
                   <Link href={`/project/${projectId}/task/new`}>
                     <Plus className="mr-2 h-4 w-4" />
                     New Task

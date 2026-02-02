@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  FolderKanban,
   Plus,
   LayoutDashboard,
   Settings,
@@ -50,7 +49,7 @@ export function Sidebar({ projects = [] }: SidebarProps) {
   ];
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-border/40 bg-card/50 backdrop-blur-sm">
+    <div className="flex h-full w-64 flex-col border-r border-border/40 bg-card/50 backdrop-blur-sm" data-tour-id="sidebar">
       <div className="p-4">
         <Button asChild variant="gradient" className="w-full justify-start shadow-lg shadow-primary/20">
           <Link href="/project/new">
@@ -124,6 +123,7 @@ export function Sidebar({ projects = [] }: SidebarProps) {
             pathname === "/settings" && "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15"
           )}
           asChild
+          data-tour-id="settings-link"
         >
           <Link href="/settings">
             <Settings className={cn("mr-2 h-4 w-4", pathname === "/settings" && "text-primary")} />

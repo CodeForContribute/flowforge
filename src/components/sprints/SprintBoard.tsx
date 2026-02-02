@@ -22,7 +22,13 @@ import { useDroppable } from "@dnd-kit/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { AIPlanDialog, AIRetroView, RiskDashboard } from "@/components/sprint";
 import { TaskPriority, TaskStatus, SprintStatus, TaskType } from "@/types";
 import { format } from "date-fns";
 import { Calendar, Target } from "lucide-react";
@@ -58,6 +64,7 @@ interface Sprint {
   startDate: Date | string;
   endDate: Date | string;
   status: SprintStatus;
+  projectId: string;
   stats: {
     totalTasks: number;
     completedTasks: number;
@@ -210,13 +217,64 @@ export function SprintBoard({
   const endDate = new Date(sprint.endDate);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour-id="sprint-board">
       {/* Sprint Header */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-xl">{sprint.name}</CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-xl">{sprint.name}</CardTitle>
+                {/* AI Actions Toolbar */}
+                <div className="flex items-center gap-2">
+                  {(sprint.status === "PLANNING" || sprint.status === "ACTIVE") && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div data-tour-id="ai-plan-button">
+                          <AIPlanDialog
+                            sprintId={sprint.id}
+                            sprintName={sprint.name}
+                            sprintStatus={sprint.status}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Use AI to suggest optimal task selection based on team capacity and velocity</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {sprint.status === "ACTIVE" && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <RiskDashboard
+                            sprintId={sprint.id}
+                            sprintName={sprint.name}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>View AI-powered risk assessment for sprint success probability</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {sprint.status === "COMPLETED" && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <AIRetroView
+                            sprintId={sprint.id}
+                            sprintName={sprint.name}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Generate AI insights from sprint data</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </div>
               {sprint.goal && (
                 <div className="flex items-start gap-2 mt-2 text-sm text-muted-foreground">
                   <Target className="h-4 w-4 mt-0.5 shrink-0" />

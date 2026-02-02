@@ -34,14 +34,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 animate-fade-in">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8" data-tour-id="dashboard-header">
         <div>
           <h1 className="text-3xl font-bold">Projects</h1>
           <p className="text-muted-foreground mt-1">
             Manage your FlowForge projects and tasks
           </p>
         </div>
-        <Button asChild variant="gradient" className="shadow-lg shadow-primary/20">
+        <Button asChild variant="gradient" className="shadow-lg shadow-primary/20" data-tour-id="new-project-button">
           <Link href="/project/new">
             <Plus className="mr-2 h-4 w-4" />
             New Project

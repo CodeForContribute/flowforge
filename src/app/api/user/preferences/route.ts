@@ -13,6 +13,7 @@ const updatePreferencesSchema = z.object({
   showActivityStatus: z.boolean().optional(),
   shareUsageAnalytics: z.boolean().optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
+  toursCompleted: z.record(z.boolean()).optional(),
 });
 
 export async function GET() {

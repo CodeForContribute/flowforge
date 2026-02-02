@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { TourProvider } from "@/components/onboarding";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,7 +38,9 @@ export default function RootLayout({
         >
           <SessionProvider>
             <TooltipProvider>
-              {children}
+              <TourProvider>
+                {children}
+              </TourProvider>
             </TooltipProvider>
           </SessionProvider>
         </ThemeProvider>

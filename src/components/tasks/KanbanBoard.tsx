@@ -157,7 +157,7 @@ export function KanbanBoard({ tasks: initialTasks, projectId, wipLimits = {} }: 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 h-full overflow-x-auto p-4">
+      <div className="flex gap-4 h-full overflow-x-auto p-4" data-tour-id="kanban-board">
         {columns.map((column) => (
           <KanbanColumn
             key={column.id}

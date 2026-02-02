@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { TaskTypeBadge } from "./TaskTypeBadge";
+import { AIEstimateBadge } from "@/components/task";
 import { GitPullRequest, MessageSquare, GripVertical, Calendar, Hash } from "lucide-react";
 import { TaskPriority, TaskType, TaskStatus } from "@/types";
 import { cn } from "@/lib/utils";
@@ -40,6 +47,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task }: TaskCardProps) {
+  const router = useRouter();
   const {
     attributes,
     listeners,
@@ -66,6 +74,7 @@ export function TaskCard({ task }: TaskCardProps) {
         isDragging && "opacity-50 scale-105 rotate-2 z-50"
       )}
       data-testid={`task-card-${task.id}`}
+      data-tour-id="task-card"
     >
       <Card
         className={cn(
@@ -127,11 +136,27 @@ export function TaskCard({ task }: TaskCardProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <PriorityBadge priority={task.priority} size="sm" />
-              {task.storyPoints && (
+              {task.storyPoints ? (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full">
                   <Hash className="h-3 w-3" />
                   {task.storyPoints}
                 </span>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <AIEstimateBadge
+                        taskId={task.id}
+                        currentStoryPoints={task.storyPoints ?? null}
+                        compact={true}
+                        onEstimateApplied={() => router.refresh()}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Get AI-powered story point estimate</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
             <div className="flex items-center gap-2">

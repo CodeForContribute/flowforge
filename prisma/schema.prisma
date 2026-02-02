@@ -45,6 +45,10 @@ model UserPreferences {
   // Theme preference (stored server-side as backup)
   theme                 String    @default("system")
 
+  // Onboarding tour preferences (JSON object tracking each section)
+  // Format: { "dashboard": true, "project": true, "taskDetail": true, "sprint": true }
+  toursCompleted        Json      @default("{}")
+
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
