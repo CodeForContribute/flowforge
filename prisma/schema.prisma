@@ -21,9 +21,10 @@ model User {
   comments      Comment[]
   assignedTasks Task[]    @relation("AssignedTasks")
   watchedTasks  Task[]    @relation("TaskWatchers")
-  memberships   ProjectMember[]
-  preferences   UserPreferences?
-  notifications Notification[]
+  memberships       ProjectMember[]
+  preferences       UserPreferences?
+  notifications     Notification[]
+  commentReactions  CommentReaction[]
 
   @@map("users")
 }
@@ -67,6 +68,8 @@ model Project {
   reviewers     String[]  // GitHub usernames
   agentModel    String    @default("claude-sonnet-4-20250514")
   wipLimits     Json?     // WIP limits per status: { "IN_PROGRESS": 3, "IN_REVIEW": 5 }
+  projectKey    String    @unique // Jira-style key e.g., "FF", "FLOW" (2-10 uppercase)
+  taskCounter   Int       @default(0) // Counter for auto-incrementing task numbers
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -169,6 +172,7 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   GENERATING
+  AWAITING_CODE_REVIEW
   PR_OPEN
   IN_REVIEW
   CHANGES_REQUESTED
@@ -201,6 +205,10 @@ model Task {
   taskType      TaskType     @default(TASK)
   storyPoints   Int?
   dueDate       DateTime?
+
+  // Human-readable ID (Jira-style)
+  taskNumber    Int          // Sequential number within project (1, 2, 3...)
+  taskKey       String       @unique // Computed: "FF-1", "FLOW-42"
 
   // GitHub PR info
   branchName    String?
@@ -239,16 +247,21 @@ model Task {
   comments      Comment[]
   executions    Execution[]
   notifications Notification[]
+  generatedCodes GeneratedCode[]
 
+  @@unique([projectId, taskNumber])
   @@map("tasks")
 }
 
 model Comment {
   id            String    @id @default(cuid())
   content       String    @db.Text
+  type          CommentType @default(COMMENT)  // Type of comment
   isSystem      Boolean   @default(false)  // True for agent-generated comments
   mentions      String[]  @default([])     // Array of mentioned user IDs
+  metadata      Json?     // Structured data for activity comments
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   taskId        String
   task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -256,7 +269,29 @@ model Comment {
   userId        String?
   user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  reactions     CommentReaction[]
+
   @@map("comments")
+}
+
+model CommentReaction {
+  id          String   @id @default(cuid())
+  emoji       String   // Emoji character (e.g., "👍", "❤️", "🎉")
+  createdAt   DateTime @default(now())
+
+  commentId   String
+  comment     Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])  // One reaction per emoji per user
+  @@map("comment_reactions")
+}
+
+enum CommentType {
+  COMMENT     // Regular user comment
+  ACTIVITY    // System activity summary
 }
 
 enum ExecutionStatus {
@@ -266,9 +301,17 @@ enum ExecutionStatus {
   FAILED
 }
 
+enum GeneratedCodeStatus {
+  PENDING_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
 enum ExecutionStep {
   CREATE_BRANCH
   GENERATE_CODE
+  AWAIT_CODE_REVIEW
   COMMIT_FILES
   CREATE_PR
   REQUEST_REVIEWERS
@@ -297,6 +340,33 @@ model Execution {
   @@map("executions")
 }
 
+enum GeneratedCodeType {
+  INITIAL_EXECUTION
+  PR_COMMENT_RESPONSE
+  REVIEW_RESPONSE
+}
+
+model GeneratedCode {
+  id              String              @id @default(cuid())
+  files           Json                // Array of GeneratedFile: { path, content, action }
+  summary         String              @db.Text
+  userFeedback    String?             @db.Text
+  version         Int                 @default(1)
+  status          GeneratedCodeStatus @default(PENDING_REVIEW)
+  type            GeneratedCodeType   @default(INITIAL_EXECUTION)
+  prCommentId     String?             // GitHub comment ID if responding to a PR comment
+  prCommentBody   String?             @db.Text // The comment being responded to
+  prCommentAuthor String?             // GitHub username of the comment author
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  reviewedAt      DateTime?
+
+  taskId        String
+  task          Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("generated_code")
+}
+
 model WebhookEvent {
   id            String    @id @default(cuid())
   eventType     String    // e.g., pull_request_review, pull_request_review_comment
@@ -318,6 +388,7 @@ enum NotificationType {
   MENTIONED
   TASK_UPDATED      // For watchers when task is updated
   COMMENT_ADDED     // For watchers when comment is added
+  CODE_REVIEW_READY // For when generated code is ready for review
 }
 
 model Notification {

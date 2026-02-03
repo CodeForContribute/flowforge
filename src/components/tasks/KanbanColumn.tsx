@@ -10,7 +10,9 @@ interface Task {
   id: string;
   title: string;
   description: string;
+  status: TaskStatus;
   priority: TaskPriority;
+  storyPoints?: number | null;
   prNumber: number | null;
   prUrl: string | null;
   projectId: string;
@@ -23,6 +25,7 @@ interface KanbanColumnProps {
   id: TaskStatus;
   title: string;
   tasks: Task[];
+  projectKey: string;
   wipLimit?: number;
 }
 
@@ -45,6 +48,10 @@ const columnStyles: Record<TaskStatus, {
   GENERATING: {
     dotColor: "bg-violet-500",
     bgColor: "bg-violet-50/30 dark:bg-violet-900/10",
+  },
+  AWAITING_CODE_REVIEW: {
+    dotColor: "bg-amber-500",
+    bgColor: "bg-amber-50/30 dark:bg-amber-900/10",
   },
   PR_OPEN: {
     dotColor: "bg-cyan-500",
@@ -72,7 +79,7 @@ const columnStyles: Record<TaskStatus, {
   },
 };
 
-export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, tasks, projectKey, wipLimit }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -80,9 +87,18 @@ export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) 
   const style = columnStyles[id] || columnStyles.BACKLOG;
   const isOverLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length > wipLimit;
   const isAtLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length === wipLimit;
+  const isEmpty = tasks.length === 0;
 
   return (
-    <div className="flex flex-col h-full min-w-[280px] max-w-[320px]" data-testid={`column-${id}`}>
+    <div
+      className={cn(
+        "flex flex-col h-full transition-all duration-300",
+        isEmpty
+          ? "min-w-[120px] max-w-[120px] flex-shrink-0"
+          : "min-w-[280px] max-w-[380px] flex-1"
+      )}
+      data-testid={`column-${id}`}
+    >
       <div className="flex items-center justify-between px-2 py-3">
         <div className="flex items-center gap-2">
           <div className={cn("h-2 w-2 rounded-full", style.dotColor)} />
@@ -118,7 +134,7 @@ export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) 
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} projectKey={projectKey} />
             ))}
             {tasks.length === 0 && (
               <div className="text-center py-8 text-sm text-muted-foreground">

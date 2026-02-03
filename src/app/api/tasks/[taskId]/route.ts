@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyWatchersTaskUpdated } from "@/services/notifications";
+import { isTaskKey } from "@/lib/task-lookup";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -46,9 +47,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -113,12 +119,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json();
+
+    // Normalize empty strings to null for optional ID fields
+    if (body.sprintId === "") body.sprintId = null;
+    if (body.assigneeId === "") body.assigneeId = null;
+    if (body.parentTaskId === "") body.parentTaskId = null;
+
     const data = updateTaskSchema.parse(body);
+
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
 
     // Verify task access
     const existingTask = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -187,7 +204,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { labelIds, ...updateData } = data;
 
     const task = await prisma.task.update({
-      where: { id: taskId },
+      where: { id: existingTask.id },
       data: {
         ...updateData,
         dueDate: data.dueDate === null ? null : data.dueDate ? new Date(data.dueDate) : undefined,
@@ -218,7 +235,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (data.status && data.status !== existingTask.status) {
       const updaterName = session.user.name || "Someone";
       await notifyWatchersTaskUpdated(
-        taskId,
+        existingTask.id,
         existingTask.title,
         existingTask.project.name,
         updaterName,
@@ -247,10 +264,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify task access
     const existingTask = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -276,7 +298,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await prisma.task.delete({
-      where: { id: taskId },
+      where: { id: existingTask.id },
     });
 
     return NextResponse.json({ success: true });

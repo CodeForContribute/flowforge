@@ -25,6 +25,7 @@ import {
   Search,
   Reply,
   History,
+  Eye,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ interface ExecutionLogsProps {
 const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch; color: string }> = {
   CREATE_BRANCH: { label: "Create Branch", icon: GitBranch, color: "text-cyan-500" },
   GENERATE_CODE: { label: "Generate Code", icon: Code, color: "text-violet-500" },
+  AWAIT_CODE_REVIEW: { label: "Awaiting Code Review", icon: Eye, color: "text-amber-500" },
   COMMIT_FILES: { label: "Commit Files", icon: FileCode, color: "text-blue-500" },
   CREATE_PR: { label: "Create Pull Request", icon: GitPullRequest, color: "text-green-500" },
   REQUEST_REVIEWERS: { label: "Request Reviewers", icon: Users, color: "text-amber-500" },

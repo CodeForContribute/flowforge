@@ -4,6 +4,7 @@ export type TaskStatus =
   | "TODO"
   | "IN_PROGRESS"
   | "GENERATING"
+  | "AWAITING_CODE_REVIEW"
   | "PR_OPEN"
   | "IN_REVIEW"
   | "CHANGES_REQUESTED"
@@ -21,9 +22,21 @@ export type MemberRole = "OWNER" | "ADMIN" | "MEMBER";
 
 export type ExecutionStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 
+export type GeneratedCodeStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "REJECTED";
+
+export type GeneratedCodeType =
+  | "INITIAL_EXECUTION"
+  | "PR_COMMENT_RESPONSE"
+  | "REVIEW_RESPONSE";
+
 export type ExecutionStep =
   | "CREATE_BRANCH"
   | "GENERATE_CODE"
+  | "AWAIT_CODE_REVIEW"
   | "COMMIT_FILES"
   | "CREATE_PR"
   | "REQUEST_REVIEWERS"
@@ -66,6 +79,8 @@ export interface Project {
   defaultBranch: string;
   reviewers: string[];
   agentModel: string;
+  projectKey: string;
+  taskCounter: number;
   createdAt: Date;
   updatedAt: Date;
   userId: string;
@@ -108,6 +123,8 @@ export interface Task {
   taskType: TaskType;
   storyPoints: number | null;
   dueDate: Date | null;
+  taskNumber: number;
+  taskKey: string;
   branchName: string | null;
   prNumber: number | null;
   prUrl: string | null;
@@ -120,13 +137,32 @@ export interface Task {
   parentTaskId: string | null;
 }
 
+export type CommentType = "COMMENT" | "ACTIVITY";
+
+export interface CommentReaction {
+  id: string;
+  emoji: string;
+  createdAt: Date;
+  commentId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+}
+
 export interface Comment {
   id: string;
   content: string;
+  type?: CommentType;
   isSystem: boolean;
+  metadata?: Record<string, unknown> | null;
   createdAt: Date;
+  updatedAt?: Date;
   taskId: string;
   userId: string | null;
+  reactions?: CommentReaction[];
 }
 
 export interface Execution {
@@ -139,6 +175,23 @@ export interface Execution {
   startedAt: Date | null;
   completedAt: Date | null;
   createdAt: Date;
+  taskId: string;
+}
+
+export interface GeneratedCode {
+  id: string;
+  files: GeneratedFile[];
+  summary: string;
+  userFeedback: string | null;
+  version: number;
+  status: GeneratedCodeStatus;
+  type: GeneratedCodeType;
+  prCommentId: string | null;
+  prCommentBody: string | null;
+  prCommentAuthor: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  reviewedAt: Date | null;
   taskId: string;
 }
 
@@ -295,6 +348,20 @@ export interface HandlePRCommentJob {
   prNumber: number;
   commentId: number;
   commentBody: string;
+  commentAuthor: string;
+}
+
+export interface ContinueExecutionJob {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+}
+
+export interface ContinueCommentResponseJob {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+  prNumber: number;
   commentAuthor: string;
 }
 

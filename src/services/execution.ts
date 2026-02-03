@@ -14,6 +14,7 @@ import {
   getFileContent,
   mergePullRequest,
   addPRComment,
+  deleteBranch,
 } from "./github";
 import { generateCode, respondToReview, classifyComment, generateDiscussionReply, generateCodeFromComment } from "./agent";
 import { generateReviewResponsePrompt } from "./prompt-generator";
@@ -24,6 +25,7 @@ import {
   notifyReviewRequested,
   notifyTaskCompleted,
   notifyTaskFailed,
+  notifyCodeReviewReady,
 } from "./notifications";
 
 interface ExecuteTaskOptions {
@@ -73,6 +75,10 @@ async function failExecution(executionId: string, error: string): Promise<void> 
   });
 }
 
+/**
+ * Phase 1: Create branch, generate code, and pause for review
+ * This is the initial execution that pauses at AWAITING_CODE_REVIEW status
+ */
 export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
   const { taskId, userId } = options;
 
@@ -118,12 +124,8 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
     data: { status: "GENERATING", branchName },
   });
 
-  // Collect activities for consolidated summary
-  const activities: { icon: string; label: string; detail?: string }[] = [];
   let generatedFiles: GeneratedFile[] = [];
   let summary = "";
-  let prNumber = 0;
-  let prUrl = "";
 
   try {
     // Step 1: Create branch (or reuse existing)
@@ -132,25 +134,14 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       baseBranch: project.defaultBranch,
     });
 
-    let branchAlreadyExists = false;
     try {
-      branchAlreadyExists = await branchExists(accessToken, owner, repo, branchName);
+      const branchAlreadyExists = await branchExists(accessToken, owner, repo, branchName);
 
       if (branchAlreadyExists) {
         await completeExecution(executionId, { branchName, reused: true });
-        activities.push({
-          icon: "branch",
-          label: "Reused existing branch",
-          detail: branchName,
-        });
       } else {
         await createBranch(accessToken, owner, repo, branchName, project.defaultBranch);
         await completeExecution(executionId, { branchName, reused: false });
-        activities.push({
-          icon: "branch",
-          label: "Created branch",
-          detail: `${branchName} from ${project.defaultBranch}`,
-        });
       }
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
@@ -170,11 +161,6 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       generatedFiles = result.files;
       summary = result.summary;
       await completeExecution(executionId, { fileCount: generatedFiles.length, summary });
-      activities.push({
-        icon: "code",
-        label: `Generated ${generatedFiles.length} file${generatedFiles.length > 1 ? "s" : ""}`,
-        detail: generatedFiles.map(f => f.path).join(", "),
-      });
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       await prisma.task.update({
@@ -184,8 +170,163 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       throw error;
     }
 
-    // Step 3: Commit files
-    executionId = await createExecution(taskId, "COMMIT_FILES", {
+    // Step 3: Save generated code to database and pause for review
+    console.log(`[Phase 1] Task ${taskId}: Saving generated code for review (${generatedFiles.length} files)`);
+    executionId = await createExecution(taskId, "AWAIT_CODE_REVIEW", {
+      fileCount: generatedFiles.length,
+    });
+
+    try {
+      // Get the current highest version for this task
+      const latestVersion = await prisma.generatedCode.findFirst({
+        where: { taskId },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      const newVersion = (latestVersion?.version ?? 0) + 1;
+
+      // Save generated code
+      await prisma.generatedCode.create({
+        data: {
+          taskId,
+          files: generatedFiles as unknown as Prisma.InputJsonValue,
+          summary,
+          version: newVersion,
+          status: "PENDING_REVIEW",
+        },
+      });
+
+      // Update task status to AWAITING_CODE_REVIEW
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: "AWAITING_CODE_REVIEW" },
+      });
+
+      console.log(`[Phase 1] Task ${taskId}: Status set to AWAITING_CODE_REVIEW - PAUSING for user review`);
+
+      await completeExecution(executionId, {
+        version: newVersion,
+        status: "PENDING_REVIEW",
+        fileCount: generatedFiles.length,
+      });
+
+      // Notify user that code is ready for review
+      await notifyCodeReviewReady(project.userId, {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        fileCount: generatedFiles.length,
+        version: newVersion,
+      });
+    } catch (error) {
+      await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
+      throw error;
+    }
+
+    // Execution pauses here - Phase 2 will be triggered by user approval
+  } catch (error) {
+    console.error("Error executing task (Phase 1):", error);
+    // Ensure task is not left in GENERATING state
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: "IN_PROGRESS" },
+    });
+
+    // Notify user about task failure
+    await notifyTaskFailed(
+      project.userId,
+      {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        branchName,
+      },
+      error instanceof Error ? error.message : "Unknown error"
+    );
+
+    throw error;
+  }
+}
+
+interface ContinueExecutionOptions {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+}
+
+/**
+ * Phase 2: Commit approved code, create PR, and request reviewers
+ * This is triggered after user approves the generated code
+ */
+export async function continueExecution(options: ContinueExecutionOptions): Promise<void> {
+  const { taskId, userId, generatedCodeId } = options;
+
+  // Get task with project and user info
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      project: {
+        userId,
+      },
+    },
+    include: {
+      project: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  if (!task.branchName) {
+    throw new Error("Task has no branch name");
+  }
+
+  // Get the approved generated code
+  const generatedCode = await prisma.generatedCode.findUnique({
+    where: { id: generatedCodeId },
+  });
+
+  if (!generatedCode) {
+    throw new Error("Generated code not found");
+  }
+
+  if (generatedCode.status !== "APPROVED") {
+    throw new Error("Generated code is not approved");
+  }
+
+  const { project } = task;
+  const accessToken = project.user.accessToken;
+  const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!repoInfo) {
+    throw new Error("Invalid GitHub repository");
+  }
+
+  const { owner, repo } = repoInfo;
+  const branchName = task.branchName;
+  const generatedFiles = generatedCode.files as unknown as GeneratedFile[];
+  const summary = generatedCode.summary;
+
+  // Update task status to GENERATING (briefly while committing)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "GENERATING" },
+  });
+
+  let prNumber = 0;
+  let prUrl = "";
+
+  try {
+    // Step 1: Commit files
+    let executionId = await createExecution(taskId, "COMMIT_FILES", {
       files: generatedFiles.map((f) => ({ path: f.path, action: f.action })),
     });
 
@@ -213,17 +354,12 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
         }
       }
       await completeExecution(executionId, { committedFiles: generatedFiles.length });
-      activities.push({
-        icon: "commit",
-        label: `Committed ${generatedFiles.length} file${generatedFiles.length > 1 ? "s" : ""}`,
-        detail: branchName,
-      });
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       throw error;
     }
 
-    // Step 4: Create pull request (or reuse existing)
+    // Step 2: Create pull request (or reuse existing)
     executionId = await createExecution(taskId, "CREATE_PR", {
       title: task.title,
       baseBranch: project.defaultBranch,
@@ -242,11 +378,6 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
         });
 
         await completeExecution(executionId, { prNumber, prUrl, reused: true });
-        activities.push({
-          icon: "pr",
-          label: "Updated existing PR",
-          detail: `#${prNumber}`,
-        });
 
         await addPRComment(
           accessToken,
@@ -297,11 +428,6 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
         });
 
         await completeExecution(executionId, { prNumber, prUrl, reused: false });
-        activities.push({
-          icon: "pr",
-          label: "Created pull request",
-          detail: `#${prNumber}`,
-        });
       }
 
       const notificationContext = {
@@ -321,7 +447,7 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
       throw error;
     }
 
-    // Step 5: Request reviewers
+    // Step 3: Request reviewers
     if (project.reviewers.length > 0) {
       executionId = await createExecution(taskId, "REQUEST_REVIEWERS", {
         reviewers: project.reviewers,
@@ -334,21 +460,42 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
           where: { id: taskId },
           data: { status: "IN_REVIEW" },
         });
-        activities.push({
-          icon: "review",
-          label: "Requested review",
-          detail: project.reviewers.join(", "),
-        });
       } catch (error) {
         await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
         console.error("Failed to request reviewers:", error);
       }
     }
 
-    // Activity tracking completed - no comment created during execution
-    // A comprehensive summary will be posted when the PR is merged via webhook
+    // Add activity comment summarizing the execution
+    const activities = [
+      { icon: "branch", text: `Created branch \`${branchName}\`` },
+      { icon: "code", text: `Generated ${generatedFiles.length} file${generatedFiles.length !== 1 ? "s" : ""}` },
+      { icon: "pr", text: `Created PR #${prNumber}` },
+    ];
+
+    if (project.reviewers.length > 0) {
+      activities.push({
+        icon: "review",
+        text: `Requested review from ${project.reviewers.map(r => `@${r}`).join(", ")}`,
+      });
+    }
+
+    const activityContent = JSON.stringify({
+      type: "activity_summary",
+      title: "Task Executed",
+      activities,
+    });
+
+    await prisma.comment.create({
+      data: {
+        taskId,
+        content: activityContent,
+        type: "ACTIVITY",
+        isSystem: true,
+      },
+    });
   } catch (error) {
-    console.error("Error executing task:", error);
+    console.error("Error executing task (Phase 2):", error);
     // Ensure task is not left in GENERATING state
     await prisma.task.update({
       where: { id: taskId },
@@ -370,6 +517,205 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
 
     throw error;
   }
+}
+
+interface RegenerateCodeOptions {
+  taskId: string;
+  userId: string;
+  feedback: string;
+}
+
+/**
+ * Regenerate code with user feedback
+ * Creates a new version of generated code incorporating the feedback
+ */
+export async function regenerateCode(options: RegenerateCodeOptions): Promise<void> {
+  const { taskId, userId, feedback } = options;
+
+  // Get task with project and user info
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      project: {
+        userId,
+      },
+    },
+    include: {
+      project: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  if (!task.generatedPrompt) {
+    throw new Error("Task has no generated prompt");
+  }
+
+  const { project } = task;
+
+  // Update task status to GENERATING
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "GENERATING" },
+  });
+
+  try {
+    // Create enhanced prompt with feedback
+    const enhancedPrompt = `${task.generatedPrompt}
+
+---
+
+## User Feedback for Revision
+
+The following feedback was provided on the previously generated code. Please incorporate this feedback in your new implementation:
+
+${feedback}
+
+Please generate improved code that addresses all the points mentioned in the feedback above.`;
+
+    // Generate new code
+    const executionId = await createExecution(taskId, "GENERATE_CODE", {
+      model: project.agentModel,
+      isRegeneration: true,
+      feedback,
+    });
+
+    let generatedFiles: GeneratedFile[] = [];
+    let summary = "";
+
+    try {
+      const result = await generateCode({
+        prompt: enhancedPrompt,
+        model: project.agentModel,
+      });
+      generatedFiles = result.files;
+      summary = result.summary;
+      await completeExecution(executionId, { fileCount: generatedFiles.length, summary });
+    } catch (error) {
+      await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
+      throw error;
+    }
+
+    // Get the current highest version for this task
+    const latestVersion = await prisma.generatedCode.findFirst({
+      where: { taskId },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+
+    const newVersion = (latestVersion?.version ?? 0) + 1;
+
+    // Save new generated code
+    await prisma.generatedCode.create({
+      data: {
+        taskId,
+        files: generatedFiles as unknown as Prisma.InputJsonValue,
+        summary,
+        userFeedback: feedback,
+        version: newVersion,
+        status: "PENDING_REVIEW",
+      },
+    });
+
+    // Update task status to AWAITING_CODE_REVIEW
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: "AWAITING_CODE_REVIEW" },
+    });
+
+    // Notify user that new code is ready for review
+    await notifyCodeReviewReady(project.userId, {
+      taskId,
+      taskTitle: task.title,
+      taskKey: task.taskKey,
+      projectName: project.name,
+      fileCount: generatedFiles.length,
+      version: newVersion,
+    });
+  } catch (error) {
+    console.error("Error regenerating code:", error);
+    // Ensure task is not left in GENERATING state
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: "AWAITING_CODE_REVIEW" },
+    });
+
+    await notifyTaskFailed(
+      project.userId,
+      {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+      },
+      error instanceof Error ? error.message : "Unknown error"
+    );
+
+    throw error;
+  }
+}
+
+/**
+ * Reset task after code review rejection
+ * Optionally deletes the branch if requested
+ */
+export async function rejectCodeReview(
+  taskId: string,
+  userId: string,
+  deleteBranchFlag: boolean = false
+): Promise<void> {
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      project: {
+        userId,
+      },
+    },
+    include: {
+      project: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  const { project } = task;
+
+  // Delete branch if requested and exists
+  if (deleteBranchFlag && task.branchName) {
+    const accessToken = project.user.accessToken;
+    const repoInfo = parseGitHubRepo(project.githubRepo);
+
+    if (repoInfo) {
+      const { owner, repo } = repoInfo;
+      try {
+        await deleteBranch(accessToken, owner, repo, task.branchName);
+      } catch (error) {
+        // Log but don't fail if branch deletion fails
+        console.error("Failed to delete branch:", error);
+      }
+    }
+  }
+
+  // Reset task status to IN_PROGRESS and clear branch
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      status: "IN_PROGRESS",
+      branchName: deleteBranchFlag ? null : task.branchName,
+    },
+  });
 }
 
 interface HandleReviewCommentsOptions {
@@ -660,13 +1006,15 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
   }
 
   // Step 2: Handle based on classification
-  const responseExecutionId = await createExecution(taskId, "RESPOND_TO_COMMENT", {
-    intent: classification.intent,
-    commentId,
-  });
+  if (classification.intent === "code_change") {
+    // Generate code and save for review (Phase 1)
+    const generateExecutionId = await createExecution(taskId, "GENERATE_CODE", {
+      type: "PR_COMMENT_RESPONSE",
+      commentId,
+      commentAuthor,
+    });
 
-  try {
-    if (classification.intent === "code_change") {
+    try {
       // Get files changed in the PR to provide context
       const comments = await getPullRequestComments(accessToken, owner, repo, prNumber);
       const uniquePaths = Array.from(new Set(comments.map((c) => c.path)));
@@ -693,48 +1041,82 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
         model: project.agentModel,
       });
 
-      // Commit the changes
-      for (const file of result.files) {
-        if (file.action === "delete") {
-          await deleteFile(
-            accessToken,
-            owner,
-            repo,
-            file.path,
-            `Address comment: delete ${file.path}`,
-            task.branchName
-          );
-        } else {
-          await createOrUpdateFile(
-            accessToken,
-            owner,
-            repo,
-            file.path,
-            file.content,
-            `Address comment from @${commentAuthor}: ${file.path}`,
-            task.branchName
-          );
-        }
-      }
-
-      // Post reply summarizing the code changes
-      await addPRComment(
-        accessToken,
-        owner,
-        repo,
-        prNumber,
-        `Thanks for the feedback, @${commentAuthor}! I've made the following changes:\n\n${result.explanation}\n\n**Files modified:** ${result.files.map((f) => `\`${f.path}\``).join(", ")}\n\n*Changes committed by FlowForge AI agent.*`
-      );
-
-      await completeExecution(responseExecutionId, {
-        action: "code_change",
-        filesModified: result.files.length,
+      await completeExecution(generateExecutionId, {
+        fileCount: result.files.length,
         explanation: result.explanation,
       });
 
-      // No comment during execution - activity will be in merge summary
-    } else {
-      // Generate a discussion reply
+      // Save generated code for review instead of committing directly
+      console.log(`[PR Comment Response] Task ${taskId}: Saving generated code for review (${result.files.length} files)`);
+
+      const awaitReviewExecutionId = await createExecution(taskId, "AWAIT_CODE_REVIEW", {
+        type: "PR_COMMENT_RESPONSE",
+        commentId,
+        fileCount: result.files.length,
+      });
+
+      // Get the current highest version for this task
+      const latestVersion = await prisma.generatedCode.findFirst({
+        where: { taskId },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      const newVersion = (latestVersion?.version ?? 0) + 1;
+
+      // Save generated code with PR comment context
+      await prisma.generatedCode.create({
+        data: {
+          taskId,
+          files: result.files as unknown as Prisma.InputJsonValue,
+          summary: result.explanation,
+          version: newVersion,
+          status: "PENDING_REVIEW",
+          type: "PR_COMMENT_RESPONSE",
+          prCommentId: String(commentId),
+          prCommentBody: commentBody,
+          prCommentAuthor: commentAuthor,
+        },
+      });
+
+      // Update task status to AWAITING_CODE_REVIEW
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: "AWAITING_CODE_REVIEW" },
+      });
+
+      console.log(`[PR Comment Response] Task ${taskId}: Status set to AWAITING_CODE_REVIEW - PAUSING for user review`);
+
+      await completeExecution(awaitReviewExecutionId, {
+        version: newVersion,
+        status: "PENDING_REVIEW",
+        fileCount: result.files.length,
+        type: "PR_COMMENT_RESPONSE",
+      });
+
+      // Notify user that code is ready for review
+      await notifyCodeReviewReady(project.userId, {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        fileCount: result.files.length,
+        version: newVersion,
+      });
+
+      // Execution pauses here - continueCommentResponse will be called after approval
+    } catch (error) {
+      await failExecution(generateExecutionId, error instanceof Error ? error.message : "Unknown error");
+      throw error;
+    }
+  } else {
+    // Generate a discussion reply (no code review needed)
+    const responseExecutionId = await createExecution(taskId, "RESPOND_TO_COMMENT", {
+      intent: classification.intent,
+      commentId,
+    });
+
+    try {
       const result = await generateDiscussionReply({
         commentBody,
         commentAuthor,
@@ -756,11 +1138,152 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
         action: "discussion_reply",
         reply: result.reply.substring(0, 500), // Truncate for storage
       });
-
-      // No comment during execution - activity will be in merge summary
+    } catch (error) {
+      await failExecution(responseExecutionId, error instanceof Error ? error.message : "Unknown error");
+      throw error;
     }
+  }
+}
+
+interface ContinueCommentResponseOptions {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+  prNumber: number;
+  commentAuthor: string;
+}
+
+/**
+ * Phase 2 for PR comment responses: Commit approved code changes
+ * This is triggered after user approves the generated code from a PR comment
+ */
+export async function continueCommentResponse(options: ContinueCommentResponseOptions): Promise<void> {
+  const { taskId, userId, generatedCodeId, prNumber, commentAuthor } = options;
+
+  // Get task with project and user info
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      project: {
+        userId,
+      },
+    },
+    include: {
+      project: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  if (!task.branchName) {
+    throw new Error("Task has no branch name");
+  }
+
+  // Get the approved generated code
+  const generatedCode = await prisma.generatedCode.findUnique({
+    where: { id: generatedCodeId },
+  });
+
+  if (!generatedCode) {
+    throw new Error("Generated code not found");
+  }
+
+  if (generatedCode.status !== "APPROVED") {
+    throw new Error("Generated code is not approved");
+  }
+
+  const { project } = task;
+  const accessToken = project.user.accessToken;
+  const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!repoInfo) {
+    throw new Error("Invalid GitHub repository");
+  }
+
+  const { owner, repo } = repoInfo;
+  const branchName = task.branchName;
+  const generatedFiles = generatedCode.files as unknown as GeneratedFile[];
+  const explanation = generatedCode.summary;
+
+  console.log(`[PR Comment Response Phase 2] Task ${taskId}: Committing approved code (${generatedFiles.length} files)`);
+
+  // Create execution for committing
+  const commitExecutionId = await createExecution(taskId, "COMMIT_FILES", {
+    type: "PR_COMMENT_RESPONSE",
+    files: generatedFiles.map((f) => ({ path: f.path, action: f.action })),
+  });
+
+  try {
+    // Commit the changes
+    for (const file of generatedFiles) {
+      if (file.action === "delete") {
+        await deleteFile(
+          accessToken,
+          owner,
+          repo,
+          file.path,
+          `Address comment: delete ${file.path}`,
+          branchName
+        );
+      } else {
+        await createOrUpdateFile(
+          accessToken,
+          owner,
+          repo,
+          file.path,
+          file.content,
+          `Address comment from @${commentAuthor}: ${file.path}`,
+          branchName
+        );
+      }
+    }
+
+    await completeExecution(commitExecutionId, {
+      committedFiles: generatedFiles.length,
+    });
+
+    // Post reply summarizing the code changes
+    const responseExecutionId = await createExecution(taskId, "RESPOND_TO_COMMENT", {
+      type: "PR_COMMENT_RESPONSE",
+      prNumber,
+    });
+
+    await addPRComment(
+      accessToken,
+      owner,
+      repo,
+      prNumber,
+      `Thanks for the feedback, @${commentAuthor}! I've made the following changes:\n\n${explanation}\n\n**Files modified:** ${generatedFiles.map((f) => `\`${f.path}\``).join(", ")}\n\n*Changes committed by FlowForge AI agent.*`
+    );
+
+    await completeExecution(responseExecutionId, {
+      action: "code_change",
+      filesModified: generatedFiles.length,
+      explanation,
+    });
+
+    // Update task status back to PR_OPEN or IN_REVIEW
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: task.prNumber ? "IN_REVIEW" : "PR_OPEN" },
+    });
+
+    console.log(`[PR Comment Response Phase 2] Task ${taskId}: Code committed and replied to PR`);
   } catch (error) {
-    await failExecution(responseExecutionId, error instanceof Error ? error.message : "Unknown error");
+    await failExecution(commitExecutionId, error instanceof Error ? error.message : "Unknown error");
+
+    // Reset task status
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: "IN_REVIEW" },
+    });
+
     throw error;
   }
 }
