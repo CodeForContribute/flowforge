@@ -8,6 +8,8 @@ import {
   notifyPRMerged,
   notifyReviewRequested,
 } from "@/services/notifications";
+import { getPRSummary, type PRSummary } from "@/services/github";
+import { parseGitHubRepo } from "@/lib/utils";
 
 // Verify GitHub webhook signature
 function verifyWebhookSignature(
@@ -222,14 +224,18 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
   const merged = pullRequest.merged as boolean;
   const prUrl = pullRequest.html_url as string;
 
-  // Find task by branch name with project info
+  // Find task by branch name with project and user info
   const task = await prisma.task.findFirst({
     where: {
       branchName: headRef,
       prNumber: prNumber,
     },
     include: {
-      project: true,
+      project: {
+        include: {
+          user: true,
+        },
+      },
     },
   });
 
@@ -238,7 +244,7 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
     return;
   }
 
-  // Handle PR opened
+  // Handle PR opened - no comment, just update status
   if (action === "opened") {
     // Update task with PR info if not already set
     if (!task.prNumber) {
@@ -267,19 +273,56 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
 
   if (action === "closed") {
     if (merged) {
-      // PR was merged
+      // PR was merged - create comprehensive summary comment
       await prisma.task.update({
         where: { id: task.id },
         data: { status: "MERGED" },
       });
 
-      await prisma.comment.create({
-        data: {
-          taskId: task.id,
-          content: `Pull request #${prNumber} was merged!`,
-          isSystem: true,
-        },
-      });
+      // Fetch PR summary from GitHub and create comprehensive comment
+      const repoInfo = parseGitHubRepo(task.project.githubRepo);
+      if (repoInfo) {
+        try {
+          const prSummary = await getPRSummary(
+            task.project.user.accessToken,
+            repoInfo.owner,
+            repoInfo.repo,
+            prNumber
+          );
+
+          const summaryComment = formatMergeSummary(prSummary);
+
+          await prisma.comment.create({
+            data: {
+              taskId: task.id,
+              content: summaryComment,
+              type: "ACTIVITY",
+              isSystem: true,
+              metadata: {
+                type: "pr_merged",
+                prNumber,
+                prUrl: prSummary.prUrl,
+                branchName: prSummary.branchName,
+                baseBranch: prSummary.baseBranch,
+                filesChanged: prSummary.totalChangedFiles,
+                additions: prSummary.totalAdditions,
+                deletions: prSummary.totalDeletions,
+                commits: prSummary.commits.length,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        } catch (error) {
+          console.error("Failed to fetch PR summary:", error);
+          // Fall back to simple comment if GitHub API fails
+          await prisma.comment.create({
+            data: {
+              taskId: task.id,
+              content: `Pull request #${prNumber} was merged into \`${task.project.defaultBranch}\`.`,
+              isSystem: true,
+            },
+          });
+        }
+      }
 
       // Send notification for PR merged
       await notifyPRMerged(task.project.userId, {
@@ -291,7 +334,7 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
         branchName: task.branchName || task.project.defaultBranch,
       });
 
-      console.log(`Task ${task.id} marked as MERGED`);
+      console.log(`Task ${task.id} marked as MERGED with comprehensive summary`);
     } else {
       // PR was closed without merging
       await prisma.task.update({
@@ -310,6 +353,60 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
       console.log(`Task ${task.id} marked as CLOSED`);
     }
   }
+}
+
+function formatMergeSummary(prSummary: PRSummary): string {
+  const { prNumber, prUrl, branchName, baseBranch, files, totalAdditions, totalDeletions, commits } = prSummary;
+
+  // Build file changes section
+  const filesList = files.slice(0, 10).map((file) => {
+    const statusIcon = file.status === "added" ? "+" : file.status === "removed" ? "-" : "~";
+    return `- \`${file.filename}\` (${statusIcon}${file.additions}, -${file.deletions})`;
+  }).join("\n");
+
+  const moreFiles = files.length > 10 ? `\n- _...and ${files.length - 10} more files_` : "";
+
+  // Build commits section
+  const commitsList = commits.slice(0, 5).map((commit) => {
+    return `- ${commit.message}`;
+  }).join("\n");
+
+  const moreCommits = commits.length > 5 ? `\n- _...and ${commits.length - 5} more commits_` : "";
+
+  const summary = JSON.stringify({
+    type: "merge_summary",
+    title: `PR #${prNumber} Merged Successfully`,
+    prNumber,
+    prUrl,
+    branchName,
+    baseBranch,
+    stats: {
+      filesChanged: files.length,
+      additions: totalAdditions,
+      deletions: totalDeletions,
+      commits: commits.length,
+    },
+    sections: [
+      {
+        title: "Branch",
+        content: `\`${branchName}\` → \`${baseBranch}\``,
+      },
+      {
+        title: "Changes",
+        content: `${files.length} file${files.length !== 1 ? "s" : ""} (+${totalAdditions}, -${totalDeletions})`,
+      },
+      {
+        title: "Files Changed",
+        content: filesList + moreFiles,
+      },
+      {
+        title: "Commits",
+        content: commitsList + moreCommits,
+      },
+    ],
+  });
+
+  return summary;
 }
 
 async function handleIssueComment(body: Record<string, unknown>): Promise<void> {

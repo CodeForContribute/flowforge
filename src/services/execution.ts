@@ -73,16 +73,6 @@ async function failExecution(executionId: string, error: string): Promise<void> 
   });
 }
 
-async function addSystemComment(taskId: string, content: string): Promise<void> {
-  await prisma.comment.create({
-    data: {
-      taskId,
-      content,
-      isSystem: true,
-    },
-  });
-}
-
 export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
   const { taskId, userId } = options;
 
@@ -120,13 +110,20 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
   }
 
   const { owner, repo } = repoInfo;
-  const branchName = generateBranchName(task.title, task.id);
+  const branchName = generateBranchName(task.title, task.id, task.taskKey);
 
   // Update task status to GENERATING
   await prisma.task.update({
     where: { id: taskId },
     data: { status: "GENERATING", branchName },
   });
+
+  // Collect activities for consolidated summary
+  const activities: { icon: string; label: string; detail?: string }[] = [];
+  let generatedFiles: GeneratedFile[] = [];
+  let summary = "";
+  let prNumber = 0;
+  let prUrl = "";
 
   try {
     // Step 1: Create branch (or reuse existing)
@@ -137,16 +134,23 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
 
     let branchAlreadyExists = false;
     try {
-      // Check if branch already exists
       branchAlreadyExists = await branchExists(accessToken, owner, repo, branchName);
 
       if (branchAlreadyExists) {
         await completeExecution(executionId, { branchName, reused: true });
-        await addSystemComment(taskId, `Reusing existing branch \`${branchName}\``);
+        activities.push({
+          icon: "branch",
+          label: "Reused existing branch",
+          detail: branchName,
+        });
       } else {
         await createBranch(accessToken, owner, repo, branchName, project.defaultBranch);
         await completeExecution(executionId, { branchName, reused: false });
-        await addSystemComment(taskId, `Created branch \`${branchName}\` from \`${project.defaultBranch}\``);
+        activities.push({
+          icon: "branch",
+          label: "Created branch",
+          detail: `${branchName} from ${project.defaultBranch}`,
+        });
       }
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
@@ -158,9 +162,6 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       model: project.agentModel,
     });
 
-    let generatedFiles: GeneratedFile[];
-    let summary: string;
-
     try {
       const result = await generateCode({
         prompt: task.generatedPrompt,
@@ -169,7 +170,11 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       generatedFiles = result.files;
       summary = result.summary;
       await completeExecution(executionId, { fileCount: generatedFiles.length, summary });
-      await addSystemComment(taskId, `Generated code for ${generatedFiles.length} files:\n\n${summary}`);
+      activities.push({
+        icon: "code",
+        label: `Generated ${generatedFiles.length} file${generatedFiles.length > 1 ? "s" : ""}`,
+        detail: generatedFiles.map(f => f.path).join(", "),
+      });
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       await prisma.task.update({
@@ -208,7 +213,11 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
         }
       }
       await completeExecution(executionId, { committedFiles: generatedFiles.length });
-      await addSystemComment(taskId, `Committed ${generatedFiles.length} files to \`${branchName}\``);
+      activities.push({
+        icon: "commit",
+        label: `Committed ${generatedFiles.length} file${generatedFiles.length > 1 ? "s" : ""}`,
+        detail: branchName,
+      });
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       throw error;
@@ -220,15 +229,10 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       baseBranch: project.defaultBranch,
     });
 
-    let prNumber: number;
-    let prUrl: string;
-
     try {
-      // Check if there's already an open PR for this branch
       const existingPR = await getOpenPullRequestForBranch(accessToken, owner, repo, branchName);
 
       if (existingPR) {
-        // Reuse existing PR - commits were already pushed to the branch
         prNumber = existingPR.number;
         prUrl = existingPR.html_url;
 
@@ -238,12 +242,12 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
         });
 
         await completeExecution(executionId, { prNumber, prUrl, reused: true });
-        await addSystemComment(
-          taskId,
-          `Updated existing pull request [#${prNumber}](${prUrl}) with new code changes`
-        );
+        activities.push({
+          icon: "pr",
+          label: "Updated existing PR",
+          detail: `#${prNumber}`,
+        });
 
-        // Add a comment to the PR about the new changes
         await addPRComment(
           accessToken,
           owner,
@@ -260,7 +264,7 @@ ${summary}
 *This update was generated by [FlowForge](https://github.com/flowforge) AI agent.*`
         );
       } else {
-        // Create new PR
+        const prTitle = task.taskKey ? `[${task.taskKey}] ${task.title}` : task.title;
         const prBody = `## Summary
 
 ${summary}
@@ -268,6 +272,8 @@ ${summary}
 ## Task Details
 
 ${task.description}
+
+${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
 
 ---
 
@@ -277,7 +283,7 @@ ${task.description}
           accessToken,
           owner,
           repo,
-          task.title,
+          prTitle,
           prBody,
           branchName,
           project.defaultBranch
@@ -291,13 +297,17 @@ ${task.description}
         });
 
         await completeExecution(executionId, { prNumber, prUrl, reused: false });
-        await addSystemComment(taskId, `Created pull request [#${prNumber}](${prUrl})`);
+        activities.push({
+          icon: "pr",
+          label: "Created pull request",
+          detail: `#${prNumber}`,
+        });
       }
 
-      // Send notifications for PR creation and task completion
       const notificationContext = {
         taskId,
         taskTitle: task.title,
+        taskKey: task.taskKey,
         projectName: project.name,
         prNumber,
         prUrl,
@@ -324,13 +334,19 @@ ${task.description}
           where: { id: taskId },
           data: { status: "IN_REVIEW" },
         });
-        await addSystemComment(taskId, `Requested review from: ${project.reviewers.join(", ")}`);
+        activities.push({
+          icon: "review",
+          label: "Requested review",
+          detail: project.reviewers.join(", "),
+        });
       } catch (error) {
-        // Don't fail the whole process if reviewers can't be added
         await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
         console.error("Failed to request reviewers:", error);
       }
     }
+
+    // Activity tracking completed - no comment created during execution
+    // A comprehensive summary will be posted when the PR is merged via webhook
   } catch (error) {
     console.error("Error executing task:", error);
     // Ensure task is not left in GENERATING state
@@ -345,6 +361,7 @@ ${task.description}
       {
         taskId,
         taskTitle: task.title,
+        taskKey: task.taskKey,
         projectName: project.name,
         branchName,
       },
@@ -403,6 +420,7 @@ export async function handleReviewComments(
     {
       taskId,
       taskTitle: task.title,
+      taskKey: task.taskKey,
       projectName: project.name,
       prNumber,
       prUrl: task.prUrl || undefined,
@@ -414,7 +432,7 @@ export async function handleReviewComments(
   const comments = await getPullRequestComments(accessToken, owner, repo, prNumber);
 
   if (comments.length === 0) {
-    await addSystemComment(taskId, "No review comments to address");
+    // No review comments to address - no comment needed
     return;
   }
 
@@ -497,10 +515,7 @@ export async function handleReviewComments(
       data: { status: "IN_REVIEW" },
     });
 
-    await addSystemComment(
-      taskId,
-      `Addressed ${comments.length} review comment(s):\n\n${result.explanation}`
-    );
+    // No comment during execution - activity will be in merge summary
   } catch (error) {
     await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
     throw error;
@@ -561,12 +576,13 @@ export async function handlePRApproval(options: HandlePRApprovalOptions): Promis
       data: { status: "MERGED" },
     });
 
-    await addSystemComment(taskId, `Pull request #${prNumber} has been merged!`);
+    // No comment here - comprehensive summary is posted via webhook when PR merges
 
     // Notify user about PR merge
     await notifyPRMerged(project.userId, {
       taskId,
       taskTitle: task.title,
+      taskKey: task.taskKey,
       projectName: project.name,
       prNumber,
       prUrl: task.prUrl || undefined,
@@ -615,7 +631,7 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
   const { owner, repo } = repoInfo;
 
   // Step 1: Analyze the comment to classify intent
-  let analysisExecutionId = await createExecution(taskId, "ANALYZE_COMMENT", {
+  const analysisExecutionId = await createExecution(taskId, "ANALYZE_COMMENT", {
     commentId,
     commentAuthor,
     commentBody: commentBody.substring(0, 200), // Truncate for logging
@@ -637,10 +653,7 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
       reasoning: classification.reasoning,
     });
 
-    await addSystemComment(
-      taskId,
-      `Analyzed comment from @${commentAuthor}:\n- **Intent:** ${classification.intent}\n- **Confidence:** ${(classification.confidence * 100).toFixed(0)}%\n- **Reasoning:** ${classification.reasoning}`
-    );
+    // Analysis complete - no comment during execution
   } catch (error) {
     await failExecution(analysisExecutionId, error instanceof Error ? error.message : "Unknown error");
     throw error;
@@ -719,10 +732,7 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
         explanation: result.explanation,
       });
 
-      await addSystemComment(
-        taskId,
-        `Addressed code change request from @${commentAuthor}:\n\n${result.explanation}\n\n**Files:** ${result.files.map((f) => f.path).join(", ")}`
-      );
+      // No comment during execution - activity will be in merge summary
     } else {
       // Generate a discussion reply
       const result = await generateDiscussionReply({
@@ -747,10 +757,7 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
         reply: result.reply.substring(0, 500), // Truncate for storage
       });
 
-      await addSystemComment(
-        taskId,
-        `Replied to discussion comment from @${commentAuthor}:\n\n> ${commentBody.substring(0, 200)}${commentBody.length > 200 ? "..." : ""}\n\n**Reply:** ${result.reply.substring(0, 300)}${result.reply.length > 300 ? "..." : ""}`
-      );
+      // No comment during execution - activity will be in merge summary
     }
   } catch (error) {
     await failExecution(responseExecutionId, error instanceof Error ? error.message : "Unknown error");

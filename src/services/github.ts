@@ -466,3 +466,81 @@ export async function getPullRequestReviews(
     submitted_at: review.submitted_at ?? null,
   }));
 }
+
+export interface PRSummary {
+  prNumber: number;
+  prUrl: string;
+  title: string;
+  branchName: string;
+  baseBranch: string;
+  files: Array<{
+    filename: string;
+    status: string;
+    additions: number;
+    deletions: number;
+  }>;
+  totalAdditions: number;
+  totalDeletions: number;
+  totalChangedFiles: number;
+  commits: Array<{
+    sha: string;
+    message: string;
+  }>;
+  mergedBy: string | null;
+  mergedAt: string | null;
+}
+
+export async function getPRSummary(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<PRSummary> {
+  const octokit = getOctokit(accessToken);
+
+  // Get PR details
+  const { data: pr } = await octokit.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
+
+  // Get files changed in the PR
+  const { data: files } = await octokit.pulls.listFiles({
+    owner,
+    repo,
+    pull_number: prNumber,
+    per_page: 100,
+  });
+
+  // Get commits in the PR
+  const { data: commits } = await octokit.pulls.listCommits({
+    owner,
+    repo,
+    pull_number: prNumber,
+    per_page: 100,
+  });
+
+  return {
+    prNumber: pr.number,
+    prUrl: pr.html_url,
+    title: pr.title,
+    branchName: pr.head.ref,
+    baseBranch: pr.base.ref,
+    files: files.map((file) => ({
+      filename: file.filename,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+    })),
+    totalAdditions: pr.additions,
+    totalDeletions: pr.deletions,
+    totalChangedFiles: pr.changed_files,
+    commits: commits.map((commit) => ({
+      sha: commit.sha.substring(0, 7),
+      message: commit.commit.message.split("\n")[0], // First line only
+    })),
+    mergedBy: pr.merged_by?.login || null,
+    mergedAt: pr.merged_at,
+  };
+}
