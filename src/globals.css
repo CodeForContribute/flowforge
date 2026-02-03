@@ -1,0 +1,33 @@
+/* Global Styles */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary-light: #e0f7fa;
+  --color-primary: #03a9f4;
+  --color-primary-dark: #01579b;
+}
+
+body {
+  background-color: var(--color-primary-light);
+  color: #333;
+}
+
+/* Custom component styles */
+.btn-primary {
+  @apply bg-color-primary text-white;
+}
+
+nav {
+  @apply bg-color-primary-dark text-white;
+}
+
+.sidebar {
+  @apply bg-color-primary text-gray-100;
+}
+
+.header {
+  @apply bg-color-primary-dark;
+}

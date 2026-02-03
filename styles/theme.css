@@ -1,0 +1,8 @@
+/* Main Theme Colors */
+:root {
+  --blue-dark: #003f7f;
+  --blue: #005f9f;
+  --blue-light: #7fbfff;
+  --blue-lighter: #b3d9ff; /* Added based on PR comment */
+  --blue-lightest: #e6f2ff; /* Added based on PR comment */
+}
