@@ -5,6 +5,7 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TourProvider } from "@/components/onboarding";
+import { TaskEventProvider } from "@/contexts/TaskEventContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,11 +38,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider>
-            <TooltipProvider>
-              <TourProvider>
-                {children}
-              </TourProvider>
-            </TooltipProvider>
+            <TaskEventProvider>
+              <TooltipProvider>
+                <TourProvider>
+                  {children}
+                </TourProvider>
+              </TooltipProvider>
+            </TaskEventProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

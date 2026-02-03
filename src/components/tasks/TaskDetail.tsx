@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Task, Comment, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority } from "@/types";
+import { Task, Comment, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority, MergeConflictInfo } from "@/types";
+import { useTaskEventListener } from "@/contexts/TaskEventContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -17,7 +19,9 @@ import { SubtasksList } from "./SubtasksList";
 import { PromptPreview } from "./PromptPreview";
 import { ExecutionLogs } from "./ExecutionLogs";
 import { CommentsSection } from "./CommentsSection";
+import { AttachmentsSection } from "./AttachmentsSection";
 import { CodeReviewPanel } from "./CodeReviewPanel";
+import { ConflictPanel } from "./ConflictPanel";
 import { AIEstimateBadge } from "@/components/task";
 import {
   Tooltip,
@@ -54,6 +58,9 @@ import {
   FileText,
   Activity,
   CircleDot,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
@@ -94,6 +101,16 @@ type TaskWithRelations = Task & {
     assignee?: { id: string; name: string | null; image: string | null } | null;
   }[];
   labels?: Label[];
+  attachments?: {
+    id: string;
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+    createdAt: Date;
+    uploadedBy: { id: string; name: string | null; image: string | null };
+  }[];
+  conflictInfo?: MergeConflictInfo | null;
 };
 
 interface TaskDetailProps {
@@ -129,9 +146,28 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
   const [isWatching, setIsWatching] = useState(false);
   const [isTogglingWatch, setIsTogglingWatch] = useState(false);
   const [showExecutionLogs, setShowExecutionLogs] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editedDescription, setEditedDescription] = useState(task.description || "");
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
+  const [status, setStatus] = useState<TaskStatus>(task.status);
+
+  // Listen for task status changes from other components (like Kanban drag-drop)
+  useTaskEventListener(
+    (event) => {
+      if (event.type === "status_changed" && event.taskId === task.id && event.data?.status) {
+        setStatus(event.data.status as TaskStatus);
+      }
+    },
+    [task.id]
+  );
+
+  // Sync status when task prop changes (e.g., from router.refresh())
+  useEffect(() => {
+    setStatus(task.status);
+  }, [task.status]);
 
   // Auto-refresh for active tasks
-  const shouldPoll = ACTIVE_STATUSES.includes(task.status);
+  const shouldPoll = ACTIVE_STATUSES.includes(status);
 
   const refreshData = useCallback(() => {
     router.refresh();
@@ -226,6 +262,29 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
     }
   }
 
+  async function handleSaveDescription() {
+    setIsSavingDescription(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: editedDescription }),
+      });
+      if (response.ok) {
+        setIsEditingDescription(false);
+        router.refresh();
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to update description");
+      }
+    } catch (error) {
+      console.error("Error updating description:", error);
+      alert("An error occurred while updating the description");
+    } finally {
+      setIsSavingDescription(false);
+    }
+  }
+
   async function handleDelete() {
     if (!confirm("Are you sure you want to delete this task?")) return;
     setIsDeleting(true);
@@ -250,10 +309,10 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
 
   const canExecute =
     task.generatedPrompt &&
-    ["BACKLOG", "TODO", "IN_PROGRESS"].includes(task.status);
+    ["BACKLOG", "TODO", "IN_PROGRESS"].includes(status);
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-  const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate) && !["MERGED", "CLOSED"].includes(task.status);
+  const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate) && !["MERGED", "CLOSED"].includes(status);
 
   return (
     <div className="animate-fade-in">
@@ -306,7 +365,7 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                       {task.taskKey}
                     </Link>
                   )}
-                  <StatusBadge status={task.status} />
+                  <StatusBadge status={status} />
                   <PriorityBadge priority={task.priority} />
                   {task.storyPoints && (
                     <Badge variant="outline" className="gap-1 bg-background/50">
@@ -354,25 +413,90 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
           {/* Description */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                Description
+              <CardTitle className="text-base flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  Description
+                </div>
+                {!isEditingDescription && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditedDescription(task.description || "");
+                      setIsEditingDescription(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                {task.description || "No description provided."}
-              </p>
+              {isEditingDescription ? (
+                <div className="space-y-3">
+                  <Textarea
+                    value={editedDescription}
+                    onChange={(e) => setEditedDescription(e.target.value)}
+                    rows={6}
+                    className="resize-none"
+                    placeholder="Add a description..."
+                    autoFocus
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingDescription(false);
+                        setEditedDescription(task.description || "");
+                      }}
+                      disabled={isSavingDescription}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveDescription}
+                      disabled={isSavingDescription}
+                    >
+                      {isSavingDescription ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-1" />
+                      )}
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                  {task.description || "No description provided."}
+                </p>
+              )}
             </CardContent>
           </Card>
 
+          {/* Attachments */}
+          <AttachmentsSection taskId={task.id} attachments={task.attachments || []} />
+
           {/* Code Review Panel */}
-          {task.status === "AWAITING_CODE_REVIEW" && (
+          {status === "AWAITING_CODE_REVIEW" && (
             <CodeReviewPanel taskId={task.id} />
           )}
 
-          {/* Subtasks */}
-          {(task.subtasks || task.taskType === "EPIC" || task.taskType === "STORY" || task.taskType === "TASK") && (
+          {/* Merge Conflict Panel */}
+          {task.prNumber && (status === "HAS_CONFLICTS" || status === "APPROVED" || status === "IN_REVIEW") && (
+            <ConflictPanel
+              taskId={task.id}
+              conflictInfo={task.conflictInfo}
+              prNumber={task.prNumber}
+            />
+          )}
+
+          {/* Subtasks - hide for SUBTASK type */}
+          {task.taskType !== "SUBTASK" && (task.subtasks || task.taskType === "EPIC" || task.taskType === "STORY" || task.taskType === "TASK") && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -471,7 +595,7 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                     </a>
                   </div>
                 )}
-                {task.status === "MERGED" && (
+                {status === "MERGED" && (
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                     <GitMerge className="h-4 w-4 text-green-500" />
                     <span className="text-sm font-medium text-green-600 dark:text-green-400">
@@ -668,8 +792,11 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                 </div>
                 <StatusSelect
                   taskId={task.id}
-                  currentStatus={task.status}
-                  onStatusChange={() => router.refresh()}
+                  currentStatus={status}
+                  onStatusChange={(newStatus) => {
+                    setStatus(newStatus);
+                    router.refresh();
+                  }}
                 />
               </div>
 

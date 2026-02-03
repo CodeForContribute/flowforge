@@ -66,6 +66,13 @@ const statusConfig: Record<TaskStatus, {
     bgColor: "bg-emerald-50 dark:bg-emerald-900/30",
     textColor: "text-emerald-700 dark:text-emerald-300",
   },
+  HAS_CONFLICTS: {
+    label: "Has Conflicts",
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50 dark:bg-red-900/30",
+    textColor: "text-red-700 dark:text-red-300",
+    isAnimated: true,
+  },
   MERGED: {
     label: "Merged",
     dotColor: "bg-green-500",

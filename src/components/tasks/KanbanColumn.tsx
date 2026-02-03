@@ -27,6 +27,7 @@ interface KanbanColumnProps {
   tasks: Task[];
   projectKey: string;
   wipLimit?: number;
+  compact?: boolean;
 }
 
 const columnStyles: Record<TaskStatus, {
@@ -79,7 +80,7 @@ const columnStyles: Record<TaskStatus, {
   },
 };
 
-export function KanbanColumn({ id, title, tasks, projectKey, wipLimit }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, tasks, projectKey, wipLimit, compact = false }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -87,27 +88,27 @@ export function KanbanColumn({ id, title, tasks, projectKey, wipLimit }: KanbanC
   const style = columnStyles[id] || columnStyles.BACKLOG;
   const isOverLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length > wipLimit;
   const isAtLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length === wipLimit;
-  const isEmpty = tasks.length === 0;
 
   return (
     <div
       className={cn(
-        "flex flex-col h-full transition-all duration-300",
-        isEmpty
-          ? "min-w-[120px] max-w-[120px] flex-shrink-0"
-          : "min-w-[280px] max-w-[380px] flex-1"
+        "flex flex-col transition-all duration-300 min-w-[250px]",
+        compact ? "min-h-[150px]" : "h-full"
       )}
       data-testid={`column-${id}`}
     >
-      <div className="flex items-center justify-between px-2 py-3">
+      <div className={cn(
+        "flex items-center justify-between px-2",
+        compact ? "py-2" : "py-3"
+      )}>
         <div className="flex items-center gap-2">
           <div className={cn("h-2 w-2 rounded-full", style.dotColor)} />
-          <h3 className="font-semibold text-sm">{title}</h3>
+          <h3 className={cn("font-semibold", compact ? "text-xs" : "text-sm")}>{title}</h3>
         </div>
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              "text-xs font-medium px-2 py-1 rounded-full min-w-[24px] text-center transition-colors",
+              "text-xs font-medium px-2 py-0.5 rounded-full min-w-[24px] text-center transition-colors",
               isOverLimit
                 ? "bg-destructive/20 text-destructive dark:bg-destructive/30"
                 : isAtLimit
@@ -128,7 +129,8 @@ export function KanbanColumn({ id, title, tasks, projectKey, wipLimit }: KanbanC
           "flex-1 p-2 rounded-xl overflow-y-auto transition-all duration-200",
           style.bgColor,
           isOver && "ring-2 ring-primary/50 ring-dashed bg-primary/5",
-          isOverLimit && "ring-2 ring-destructive/50"
+          isOverLimit && "ring-2 ring-destructive/50",
+          compact && "max-h-[300px]"
         )}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -137,7 +139,10 @@ export function KanbanColumn({ id, title, tasks, projectKey, wipLimit }: KanbanC
               <TaskCard key={task.id} task={task} projectKey={projectKey} />
             ))}
             {tasks.length === 0 && (
-              <div className="text-center py-8 text-sm text-muted-foreground">
+              <div className={cn(
+                "text-center text-sm text-muted-foreground",
+                compact ? "py-4" : "py-8"
+              )}>
                 <p className="opacity-60">No tasks</p>
               </div>
             )}

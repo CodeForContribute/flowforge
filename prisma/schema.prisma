@@ -25,6 +25,7 @@ model User {
   preferences       UserPreferences?
   notifications     Notification[]
   commentReactions  CommentReaction[]
+  attachments       Attachment[]
 
   @@map("users")
 }
@@ -177,6 +178,7 @@ enum TaskStatus {
   IN_REVIEW
   CHANGES_REQUESTED
   APPROVED
+  HAS_CONFLICTS
   MERGED
   CLOSED
 }
@@ -212,8 +214,10 @@ model Task {
 
   // GitHub PR info
   branchName    String?
+  baseBranch    String?   // Base branch for PR (overrides project default)
   prNumber      Int?
   prUrl         String?
+  conflictInfo  Json?     // Stores MergeConflictInfo when PR has conflicts
 
   // Generated content
   generatedPrompt String?    @db.Text
@@ -248,9 +252,27 @@ model Task {
   executions    Execution[]
   notifications Notification[]
   generatedCodes GeneratedCode[]
+  attachments   Attachment[]
 
   @@unique([projectId, taskNumber])
   @@map("tasks")
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  name        String   // Original filename
+  url         String   // Storage URL (could be S3, Cloudinary, etc.)
+  type        String   // MIME type (image/png, application/pdf, etc.)
+  size        Int      // File size in bytes
+  createdAt   DateTime @default(now())
+
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  uploadedById String
+  uploadedBy   User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
 }
 
 model Comment {

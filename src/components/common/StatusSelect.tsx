@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TaskStatus } from "@/types";
 import { cn } from "@/lib/utils";
 import {
@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { useTaskStatusChange } from "@/contexts/TaskEventContext";
 
 const statusConfig: Record<
   TaskStatus,
@@ -75,6 +76,12 @@ const statusConfig: Record<
     bgColor: "bg-emerald-50 dark:bg-emerald-900/30",
     textColor: "text-emerald-700 dark:text-emerald-300",
   },
+  HAS_CONFLICTS: {
+    label: "Has Conflicts",
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50 dark:bg-red-900/30",
+    textColor: "text-red-700 dark:text-red-300",
+  },
   MERGED: {
     label: "Merged",
     dotColor: "bg-green-500",
@@ -120,6 +127,12 @@ export function StatusSelect({
 }: StatusSelectProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [status, setStatus] = useState<TaskStatus>(currentStatus);
+  const { emitStatusChange } = useTaskStatusChange();
+
+  // Sync internal state when prop changes (e.g., from parent component receiving events)
+  useEffect(() => {
+    setStatus(currentStatus);
+  }, [currentStatus]);
 
   async function handleStatusChange(newStatus: TaskStatus) {
     if (newStatus === status) return;
@@ -134,6 +147,8 @@ export function StatusSelect({
 
       if (response.ok) {
         setStatus(newStatus);
+        // Emit event for other components to sync
+        emitStatusChange(taskId, newStatus);
         onStatusChange?.(newStatus);
       } else {
         const error = await response.json();

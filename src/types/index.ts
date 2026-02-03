@@ -9,6 +9,7 @@ export type TaskStatus =
   | "IN_REVIEW"
   | "CHANGES_REQUESTED"
   | "APPROVED"
+  | "HAS_CONFLICTS"
   | "MERGED"
   | "CLOSED";
 
@@ -43,7 +44,10 @@ export type ExecutionStep =
   | "RESPOND_TO_REVIEW"
   | "MERGE_PR"
   | "ANALYZE_COMMENT"
-  | "RESPOND_TO_COMMENT";
+  | "RESPOND_TO_COMMENT"
+  | "CHECK_CONFLICTS"
+  | "UPDATE_BRANCH"
+  | "RESOLVE_CONFLICTS";
 
 // Comment classification types
 export type CommentIntent = "code_change" | "discussion";
@@ -278,6 +282,8 @@ export interface GitHubPullRequest {
   html_url: string;
   state: "open" | "closed";
   merged: boolean;
+  mergeable?: boolean | null;
+  mergeable_state?: "clean" | "dirty" | "blocked" | "behind" | "unknown" | "unstable";
   head: {
     ref: string;
     sha: string;
@@ -286,6 +292,32 @@ export interface GitHubPullRequest {
     ref: string;
     sha: string;
   };
+}
+
+// Merge conflict types
+export interface ConflictFile {
+  path: string;
+  conflictMarkers?: string;
+  ourContent?: string;
+  theirContent?: string;
+}
+
+export interface MergeConflictInfo {
+  hasConflicts: boolean;
+  mergeableState: string;
+  conflictingFiles: ConflictFile[];
+  behindByCommits: number;
+  aheadByCommits: number;
+  baseBranch: string;
+  headBranch: string;
+  lastChecked: Date;
+}
+
+export interface ConflictResolutionResult {
+  success: boolean;
+  resolvedFiles: GeneratedFile[];
+  summary: string;
+  error?: string;
 }
 
 export interface GitHubReviewComment {
