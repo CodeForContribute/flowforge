@@ -356,54 +356,54 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
 }
 
 function formatMergeSummary(prSummary: PRSummary): string {
-  const { prNumber, prUrl, branchName, baseBranch, files, totalAdditions, totalDeletions, commits } = prSummary;
+  const { prNumber, branchName, baseBranch, files, totalAdditions, totalDeletions, commits } = prSummary;
 
-  // Build file changes section
-  const filesList = files.slice(0, 10).map((file) => {
+  // Build activities array in the same format as activity_summary
+  const activities: { icon: string; label: string; detail?: string }[] = [];
+
+  // Merged branch info
+  activities.push({
+    icon: "merge",
+    label: "Merged branch",
+    detail: `${branchName} → ${baseBranch}`,
+  });
+
+  // Files changed summary
+  activities.push({
+    icon: "code",
+    label: `Changed ${files.length} file${files.length !== 1 ? "s" : ""}`,
+    detail: `+${totalAdditions}, -${totalDeletions}`,
+  });
+
+  // List individual files (up to 5)
+  const filesToShow = files.slice(0, 5);
+  for (const file of filesToShow) {
     const statusIcon = file.status === "added" ? "+" : file.status === "removed" ? "-" : "~";
-    return `- \`${file.filename}\` (${statusIcon}${file.additions}, -${file.deletions})`;
-  }).join("\n");
+    activities.push({
+      icon: "file",
+      label: `${statusIcon} ${file.filename}`,
+      detail: `+${file.additions}, -${file.deletions}`,
+    });
+  }
 
-  const moreFiles = files.length > 10 ? `\n- _...and ${files.length - 10} more files_` : "";
+  if (files.length > 5) {
+    activities.push({
+      icon: "file",
+      label: `...and ${files.length - 5} more file${files.length - 5 !== 1 ? "s" : ""}`,
+    });
+  }
 
-  // Build commits section
-  const commitsList = commits.slice(0, 5).map((commit) => {
-    return `- ${commit.message}`;
-  }).join("\n");
-
-  const moreCommits = commits.length > 5 ? `\n- _...and ${commits.length - 5} more commits_` : "";
+  // Commits summary
+  activities.push({
+    icon: "commit",
+    label: `${commits.length} commit${commits.length !== 1 ? "s" : ""}`,
+    detail: commits[0]?.message || "",
+  });
 
   const summary = JSON.stringify({
-    type: "merge_summary",
+    type: "activity_summary",
     title: `PR #${prNumber} Merged Successfully`,
-    prNumber,
-    prUrl,
-    branchName,
-    baseBranch,
-    stats: {
-      filesChanged: files.length,
-      additions: totalAdditions,
-      deletions: totalDeletions,
-      commits: commits.length,
-    },
-    sections: [
-      {
-        title: "Branch",
-        content: `\`${branchName}\` → \`${baseBranch}\``,
-      },
-      {
-        title: "Changes",
-        content: `${files.length} file${files.length !== 1 ? "s" : ""} (+${totalAdditions}, -${totalDeletions})`,
-      },
-      {
-        title: "Files Changed",
-        content: filesList + moreFiles,
-      },
-      {
-        title: "Commits",
-        content: commitsList + moreCommits,
-      },
-    ],
+    activities,
   });
 
   return summary;
