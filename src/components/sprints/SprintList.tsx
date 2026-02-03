@@ -39,10 +39,11 @@ interface Sprint {
 
 interface SprintListProps {
   sprints: Sprint[];
+  projectKey?: string;
   onCreateSprint?: () => void;
 }
 
-export function SprintList({ sprints, onCreateSprint }: SprintListProps) {
+export function SprintList({ sprints, projectKey, onCreateSprint }: SprintListProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Sprint | null>(null);
@@ -129,6 +130,7 @@ export function SprintList({ sprints, onCreateSprint }: SprintListProps) {
           <div key={sprint.id} className={loading === sprint.id ? "opacity-50" : ""}>
             <SprintCard
               sprint={sprint}
+              projectKey={projectKey}
               onStart={() => handleStart(sprint.id)}
               onComplete={() => handleComplete(sprint.id)}
               onDelete={() => setDeleteConfirm(sprint)}

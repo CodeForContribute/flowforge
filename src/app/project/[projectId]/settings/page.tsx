@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { ProjectSettingsLayout } from "@/components/settings/ProjectSettingsLayout";
 import { GeneralProjectSettings } from "@/components/settings/GeneralProjectSettings";
 import { WipLimitsSettings } from "@/components/settings/WipLimitsSettings";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface ProjectSettingsPageProps {
   params: Promise<{ projectId: string }>;
@@ -20,9 +21,14 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const projectWhereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
+      ...projectWhereClause,
       OR: [
         { userId: session.user.id },
         { members: { some: { userId: session.user.id } } },
@@ -35,9 +41,14 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
   }
 
   const projects = await prisma.project.findMany({
-    where: { userId: session.user.id },
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { members: { some: { userId: session.user.id } } },
+      ],
+    },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   const isOwner = project.userId === session.user.id;
@@ -48,7 +59,7 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30">
-          <ProjectSettingsLayout projectId={projectId} projectName={project.name}>
+          <ProjectSettingsLayout projectId={project.id} projectKey={project.projectKey} projectName={project.name}>
             <GeneralProjectSettings
               project={{
                 id: project.id,

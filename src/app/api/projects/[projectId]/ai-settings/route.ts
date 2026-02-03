@@ -4,8 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encrypt, decrypt, maskApiKey } from "@/lib/encryption";
 import { z } from "zod";
-import OpenAI from "openai";
-import Anthropic from "@anthropic-ai/sdk";
 
 const updateAISettingsSchema = z.object({
   aiEnabled: z.boolean().optional(),

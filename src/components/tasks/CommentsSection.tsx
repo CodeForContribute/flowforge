@@ -135,6 +135,22 @@ function ActivitySummary({
   title: string;
   activities: { icon: string; label: string; detail?: string }[];
 }) {
+  // Filter out activities without labels
+  const validActivities = activities.filter(a => a.label);
+
+  if (validActivities.length === 0) {
+    return (
+      <div className="rounded-lg border bg-gradient-to-r from-primary/5 to-transparent p-4">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-full bg-green-500/20 flex items-center justify-center">
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+          </div>
+          <span className="font-medium text-sm">{title}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border bg-gradient-to-r from-primary/5 to-transparent p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -144,7 +160,7 @@ function ActivitySummary({
         <span className="font-medium text-sm">{title}</span>
       </div>
       <div className="space-y-2 pl-8">
-        {activities.map((activity, index) => {
+        {validActivities.map((activity, index) => {
           const IconComponent = ACTIVITY_ICONS[activity.icon] || GitBranch;
           return (
             <div key={index} className="flex items-start gap-2 text-sm">

@@ -3,11 +3,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { ArrowLeft, BarChart3, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MetricsPanel } from "@/components/metrics/MetricsPanel";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface MetricsPageProps {
   params: Promise<{ projectId: string }>;
@@ -21,9 +22,14 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const whereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
+      ...whereClause,
       OR: [
         { userId: session.user.id },
         { members: { some: { userId: session.user.id } } },
@@ -37,7 +43,7 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
 
   // Fetch all tasks for metrics
   const tasks = await prisma.task.findMany({
-    where: { projectId },
+    where: { projectId: project.id },
     select: {
       id: true,
       status: true,
@@ -50,7 +56,7 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
 
   // Fetch sprints with their tasks
   const sprints = await prisma.sprint.findMany({
-    where: { projectId },
+    where: { projectId: project.id },
     include: {
       tasks: {
         select: {
@@ -65,7 +71,7 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
 
   // Fetch project members
   const members = await prisma.projectMember.findMany({
-    where: { projectId },
+    where: { projectId: project.id },
     include: {
       user: {
         select: { id: true, name: true },
@@ -106,8 +112,12 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
       ],
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
+
+  // Calculate quick stats for header
+  const completedTasks = tasks.filter(t => t.status === "MERGED" || t.status === "CLOSED").length;
+  const completionRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
   return (
     <div className="flex h-screen flex-col">
@@ -115,27 +125,42 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="border-b bg-background px-6 py-4">
+          {/* Modern Header */}
+          <header className="border-b bg-gradient-to-r from-background via-background to-muted/30 px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/project/${projectId}`}>
+                <Button variant="ghost" size="icon" className="shrink-0" asChild>
+                  <Link href={`/project/${project.projectKey || project.id}`}>
                     <ArrowLeft className="h-4 w-4" />
                   </Link>
                 </Button>
-                <div>
-                  <h1 className="text-xl font-bold flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    Metrics
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    Project overview and statistics
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <BarChart3 className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xl font-bold">Metrics</h1>
+                      <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {project.projectKey}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span>{tasks.length} total tasks</span>
+                      <span className="text-xs">•</span>
+                      <span className="flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3 text-green-500" />
+                        {completionRate}% complete
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-auto p-6 bg-muted/30">
             <MetricsPanel
               tasks={tasks}
               sprints={sprints}

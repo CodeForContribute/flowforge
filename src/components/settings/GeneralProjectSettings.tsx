@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Github, GitBranch, Users, Bot, Loader2, X } from "lucide-react";
+import { Settings, Github, GitBranch, Users, Bot, Loader2, X, RefreshCw } from "lucide-react";
 
 interface GeneralProjectSettingsProps {
   project: {
@@ -41,6 +41,29 @@ export function GeneralProjectSettings({ project, isOwner }: GeneralProjectSetti
     agentModel: project.agentModel,
   });
   const [newReviewer, setNewReviewer] = useState("");
+  const [branches, setBranches] = useState<string[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+
+  // Fetch branches from GitHub
+  useEffect(() => {
+    fetchBranches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
+  async function fetchBranches() {
+    setIsLoadingBranches(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/branches`);
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+      }
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    } finally {
+      setIsLoadingBranches(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,7 +116,7 @@ export function GeneralProjectSettings({ project, isOwner }: GeneralProjectSetti
             General Settings
           </CardTitle>
           <CardDescription>
-            Manage your project's basic information and configuration
+            Manage your project&apos;s basic information and configuration
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,19 +157,45 @@ export function GeneralProjectSettings({ project, isOwner }: GeneralProjectSetti
               </p>
             </div>
 
-            {/* Default Branch */}
+            {/* Default Branch (Base Branch for PRs) */}
             <div className="space-y-2">
-              <Label htmlFor="defaultBranch">Default Branch</Label>
+              <Label htmlFor="defaultBranch">Base Branch for PRs</Label>
               <div className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="defaultBranch"
+                <GitBranch className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Select
                   value={formData.defaultBranch}
-                  onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
-                  placeholder="main"
-                  disabled={!isOwner}
-                />
+                  onValueChange={(value) => setFormData({ ...formData, defaultBranch: value })}
+                  disabled={!isOwner || isLoadingBranches}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
+                      </SelectItem>
+                    ))}
+                    {branches.length === 0 && !isLoadingBranches && (
+                      <SelectItem value={formData.defaultBranch} disabled>
+                        {formData.defaultBranch}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchBranches}
+                  disabled={isLoadingBranches}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoadingBranches ? "animate-spin" : ""}`} />
+                </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                PRs will be created against this branch
+              </p>
             </div>
 
             {isOwner && (

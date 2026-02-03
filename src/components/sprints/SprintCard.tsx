@@ -19,6 +19,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { AIPlanDialog, AIRetroView, RiskDashboard } from "@/components/sprint";
 import { SprintStatus } from "@/types";
 import { format } from "date-fns";
 
@@ -41,6 +47,7 @@ interface SprintCardProps {
     projectId: string;
     stats: SprintStats;
   };
+  projectKey?: string;
   onStart?: () => void;
   onComplete?: () => void;
   onDelete?: () => void;
@@ -52,7 +59,7 @@ const statusConfig: Record<SprintStatus, { label: string; variant: "default" | "
   COMPLETED: { label: "Completed", variant: "outline", icon: CheckCircle2 },
 };
 
-export function SprintCard({ sprint, onStart, onComplete, onDelete }: SprintCardProps) {
+export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }: SprintCardProps) {
   const config = statusConfig[sprint.status];
   const StatusIcon = config.icon;
   const startDate = new Date(sprint.startDate);
@@ -66,7 +73,7 @@ export function SprintCard({ sprint, onStart, onComplete, onDelete }: SprintCard
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <Link
-              href={`/project/${sprint.projectId}/sprint/${sprint.id}`}
+              href={`/project/${projectKey || sprint.projectId}/sprint/${sprint.id}`}
               className="hover:underline"
             >
               <CardTitle className="text-lg">{sprint.name}</CardTitle>
@@ -81,32 +88,85 @@ export function SprintCard({ sprint, onStart, onComplete, onDelete }: SprintCard
               )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {sprint.status === "PLANNING" && onStart && (
-                <DropdownMenuItem onClick={onStart}>
-                  <Play className="mr-2 h-4 w-4" />
-                  Start Sprint
-                </DropdownMenuItem>
-              )}
-              {sprint.status === "ACTIVE" && onComplete && (
-                <DropdownMenuItem onClick={onComplete}>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Complete Sprint
-                </DropdownMenuItem>
-              )}
-              {onDelete && (
-                <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                  Delete Sprint
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            {/* AI Features */}
+            {(sprint.status === "PLANNING" || sprint.status === "ACTIVE") && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <AIPlanDialog
+                      sprintId={sprint.id}
+                      sprintName={sprint.name}
+                      sprintStatus={sprint.status}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Let AI analyze your backlog and suggest optimal tasks based on team capacity</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {sprint.status === "ACTIVE" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <RiskDashboard
+                      sprintId={sprint.id}
+                      sprintName={sprint.name}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>View AI-powered risk assessment for sprint success</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {sprint.status === "COMPLETED" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <AIRetroView
+                      sprintId={sprint.id}
+                      sprintName={sprint.name}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Generate AI insights from sprint data</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {sprint.status === "PLANNING" && onStart && (
+                  <DropdownMenuItem onClick={onStart}>
+                    <Play className="mr-2 h-4 w-4" />
+                    Start Sprint
+                  </DropdownMenuItem>
+                )}
+                {sprint.status === "ACTIVE" && onComplete && (
+                  <DropdownMenuItem onClick={onComplete}>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Complete Sprint
+                  </DropdownMenuItem>
+                )}
+                {onDelete && (
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                    Delete Sprint
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

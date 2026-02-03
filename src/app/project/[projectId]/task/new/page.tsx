@@ -5,6 +5,7 @@ import { redirect, notFound } from "next/navigation";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface NewTaskPageProps {
   params: Promise<{ projectId: string }>;
@@ -18,10 +19,18 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const projectWhereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
-      userId: session.user.id,
+      ...projectWhereClause,
+      OR: [
+        { userId: session.user.id },
+        { members: { some: { userId: session.user.id } } },
+      ],
     },
   });
 
@@ -30,9 +39,14 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
   }
 
   const projects = await prisma.project.findMany({
-    where: { userId: session.user.id },
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { members: { some: { userId: session.user.id } } },
+      ],
+    },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   return (
@@ -41,7 +55,7 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">
-          <TaskForm mode="create" projectId={projectId} />
+          <TaskForm mode="create" projectId={project.id} projectKey={project.projectKey} defaultBranch={project.defaultBranch} />
         </main>
       </div>
     </div>

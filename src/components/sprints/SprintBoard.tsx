@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTaskEventListener } from "@/contexts/TaskEventContext";
 import {
   DndContext,
   DragOverlay,
@@ -76,6 +77,7 @@ interface Sprint {
 
 interface SprintBoardProps {
   sprint: Sprint;
+  projectKey?: string;
   sprintTasks: Task[];
   backlogTasks: Task[];
 }
@@ -117,6 +119,7 @@ function DroppableColumn({
 
 export function SprintBoard({
   sprint,
+  projectKey,
   sprintTasks: initialSprintTasks,
   backlogTasks: initialBacklogTasks,
 }: SprintBoardProps) {
@@ -124,6 +127,26 @@ export function SprintBoard({
   const [sprintTasks, setSprintTasks] = useState(initialSprintTasks);
   const [backlogTasks, setBacklogTasks] = useState(initialBacklogTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Listen for task status changes from other components
+  useTaskEventListener(
+    (event) => {
+      if (event.type === "status_changed" && event.data?.status) {
+        const newStatus = event.data.status as TaskStatus;
+        setSprintTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, status: newStatus } : t
+          )
+        );
+        setBacklogTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, status: newStatus } : t
+          )
+        );
+      }
+    },
+    [setSprintTasks, setBacklogTasks]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { StatusBadge } from "@/components/common/StatusBadge";
+import { StatusSelect } from "@/components/common/StatusSelect";
 import { TaskTypeBadge } from "./TaskTypeBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -24,6 +24,7 @@ interface Subtask {
   status: TaskStatus;
   priority: TaskPriority;
   storyPoints: number | null;
+  taskKey?: string;
   assignee?: {
     id: string;
     name: string | null;
@@ -34,6 +35,7 @@ interface Subtask {
 interface SubtasksListProps {
   parentTaskId: string;
   projectId: string;
+  projectKey?: string;
   subtasks: Subtask[];
   parentTaskType: TaskType;
 }
@@ -41,6 +43,7 @@ interface SubtasksListProps {
 export function SubtasksList({
   parentTaskId,
   projectId,
+  projectKey,
   subtasks,
   parentTaskType,
 }: SubtasksListProps) {
@@ -127,19 +130,38 @@ export function SubtasksList({
 
         <CollapsibleContent className="space-y-1">
           {subtasks.map((subtask) => (
-            <Link
+            <div
               key={subtask.id}
-              href={`/project/${projectId}/task/${subtask.id}`}
-              className="flex items-center gap-2 p-2 rounded-md hover:bg-accent text-sm"
+              className="flex items-center gap-2 p-2 rounded-md hover:bg-accent text-sm group"
             >
               <TaskTypeBadge type={subtask.taskType} size="sm" showLabel={false} />
-              <span className="flex-1 truncate">{subtask.title}</span>
+              {subtask.taskKey && (
+                <Link
+                  href={`/project/${projectKey || projectId}/task/${subtask.taskKey || subtask.id}`}
+                  className="text-xs font-mono text-primary/80 bg-primary/10 px-1 py-0.5 rounded shrink-0 hover:bg-primary/20 transition-colors"
+                >
+                  {subtask.taskKey}
+                </Link>
+              )}
+              <Link
+                href={`/project/${projectKey || projectId}/task/${subtask.taskKey || subtask.id}`}
+                className="flex-1 truncate hover:text-primary transition-colors"
+              >
+                {subtask.title}
+              </Link>
               {subtask.storyPoints && (
                 <span className="text-xs text-muted-foreground">
                   {subtask.storyPoints}pts
                 </span>
               )}
-              <StatusBadge status={subtask.status} size="sm" />
+              <div onClick={(e) => e.stopPropagation()}>
+                <StatusSelect
+                  taskId={subtask.id}
+                  currentStatus={subtask.status}
+                  size="sm"
+                  onStatusChange={() => router.refresh()}
+                />
+              </div>
               {subtask.assignee && (
                 <Avatar className="h-5 w-5">
                   <AvatarImage src={subtask.assignee.image || undefined} />
@@ -148,7 +170,7 @@ export function SubtasksList({
                   </AvatarFallback>
                 </Avatar>
               )}
-            </Link>
+            </div>
           ))}
 
           {isAdding && (

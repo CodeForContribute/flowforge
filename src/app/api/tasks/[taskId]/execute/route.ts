@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { addTaskExecutionJob } from "@/lib/queue";
+import { isTaskKey } from "@/lib/task-lookup";
 
 interface RouteParams {
   params: Promise<{ taskId: string }>;
@@ -17,10 +18,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify task ownership and get current state
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           userId: session.user.id,
         },
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Update task status to indicate it's being processed
     await prisma.task.update({
-      where: { id: taskId },
+      where: { id: task.id },
       data: { status: "IN_PROGRESS" },
     });
 

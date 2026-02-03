@@ -8,40 +8,43 @@ import { cn } from "@/lib/utils";
 interface ProjectSettingsLayoutProps {
   children: React.ReactNode;
   projectId: string;
+  projectKey?: string;
   projectName: string;
 }
 
 export function ProjectSettingsLayout({
   children,
   projectId,
+  projectKey,
   projectName,
 }: ProjectSettingsLayoutProps) {
   const pathname = usePathname();
+  const projectSlug = projectKey || projectId;
 
   const settingsNav = [
     {
       title: "General",
-      href: `/project/${projectId}/settings`,
+      href: `/project/${projectSlug}/settings`,
       icon: Settings,
     },
     {
       title: "AI Integrations",
-      href: `/project/${projectId}/settings/ai`,
+      href: `/project/${projectSlug}/settings/ai`,
       icon: Sparkles,
     },
     {
       title: "Members",
-      href: `/project/${projectId}/settings/members`,
+      href: `/project/${projectSlug}/settings/members`,
       icon: Users,
     },
     {
       title: "Labels",
-      href: `/project/${projectId}/settings/labels`,
+      href: `/project/${projectSlug}/settings/labels`,
       icon: Tag,
     },
     {
       title: "Danger Zone",
-      href: `/project/${projectId}/settings/danger`,
+      href: `/project/${projectSlug}/settings/danger`,
       icon: AlertTriangle,
       danger: true,
     },
@@ -59,9 +62,9 @@ export function ProjectSettingsLayout({
         <nav className="md:w-56 space-y-1">
           {settingsNav.map((item) => {
             const isActive =
-              item.href === `/project/${projectId}/settings`
-                ? pathname === item.href
-                : pathname.startsWith(item.href);
+              item.href === `/project/${projectSlug}/settings`
+                ? pathname === item.href || pathname === `/project/${projectId}/settings`
+                : pathname.startsWith(item.href) || pathname.startsWith(item.href.replace(projectSlug, projectId));
             return (
               <Link
                 key={item.href}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ interface PrivacyPreferences {
 }
 
 export function SecuritySettings() {
-  const router = useRouter();
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -155,7 +153,7 @@ export function SecuritySettings() {
             <div>
               <Label className="font-medium">Activity Status</Label>
               <p className="text-xs text-muted-foreground">
-                Show when you're active to team members
+                Show when you&apos;re active to team members
               </p>
             </div>
             <div className="flex items-center gap-2">

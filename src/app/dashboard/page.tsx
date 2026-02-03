@@ -81,6 +81,7 @@ export default async function DashboardPage() {
                   name: project.name,
                   description: project.description,
                   githubRepo: project.githubRepo,
+                  projectKey: project.projectKey,
                   taskCount: project._count.tasks,
                   activePRCount: project.tasks.length,
                   updatedAt: project.updatedAt,

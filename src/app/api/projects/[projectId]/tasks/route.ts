@@ -37,6 +37,15 @@ export async function GET(
         select: { id: true, name: true, image: true },
       },
       labels: true,
+      subtasks: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          taskKey: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
       _count: {
         select: { comments: true, subtasks: true },
       },

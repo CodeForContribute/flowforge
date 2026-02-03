@@ -129,12 +129,12 @@ const projectTour: SectionTour = {
   ],
 };
 
-// Task Detail Tour - shown on /project/[id]/task/[taskId]
+// Task Detail Tour - shown on /project/[id]/task/[taskId] (but NOT /task/new or /task/[id]/edit)
 const taskDetailTour: SectionTour = {
   id: "taskDetail",
   name: "Task Detail Tour",
   description: "Learn about AI-powered task execution",
-  pathPattern: /^\/project\/[^/]+\/task\/[^/]+$/,
+  pathPattern: /^\/project\/[^/]+\/task\/(?!new$)[^/]+$/,
   steps: [
     {
       id: "task-overview",

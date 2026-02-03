@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Loader2 } from "lucide-react";
+import { Loader2, GitBranch, RefreshCw } from "lucide-react";
 import { TaskStatus, TaskPriority, TaskType } from "@/types";
 import { AssigneeSelector } from "./AssigneeSelector";
 import { DueDatePicker } from "./DueDatePicker";
@@ -26,6 +26,7 @@ import { SprintSelector } from "@/components/sprints/SprintSelector";
 interface TaskFormProps {
   mode: "create" | "edit";
   projectId: string;
+  projectKey?: string;
   initialData?: {
     id: string;
     title: string;
@@ -38,14 +39,19 @@ interface TaskFormProps {
     assigneeId?: string | null;
     sprintId?: string | null;
     parentTaskId?: string | null;
+    taskKey?: string;
+    baseBranch?: string | null;
     labels?: { id: string; name: string; color: string }[];
   };
   parentTaskId?: string;
+  defaultBranch?: string;
 }
 
-export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFormProps) {
+export function TaskForm({ mode, projectId, projectKey, initialData, parentTaskId, defaultBranch }: TaskFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -56,8 +62,30 @@ export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFor
     dueDate: initialData?.dueDate ? new Date(initialData.dueDate) : null,
     assigneeId: initialData?.assigneeId ?? null,
     sprintId: initialData?.sprintId ?? null,
+    baseBranch: initialData?.baseBranch ?? null,
     labels: initialData?.labels || [],
   });
+
+  // Fetch branches from GitHub
+  async function fetchBranches() {
+    setIsLoadingBranches(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/branches`);
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+      }
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    } finally {
+      setIsLoadingBranches(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchBranches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,6 +111,7 @@ export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFor
           dueDate: formData.dueDate?.toISOString() || null,
           assigneeId: formData.assigneeId,
           sprintId: formData.sprintId,
+          baseBranch: formData.baseBranch,
           labelIds: formData.labels.map((l) => l.id),
           parentTaskId: parentTaskId || initialData?.parentTaskId,
           projectId,
@@ -91,7 +120,9 @@ export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFor
 
       if (response.ok) {
         const data = await response.json();
-        router.push(`/project/${projectId}/task/${data.task.id}`);
+        const projectSlug = projectKey || projectId;
+        const taskSlug = data.task.taskKey || data.task.id;
+        router.push(`/project/${projectSlug}/task/${taskSlug}`);
         router.refresh();
       } else {
         const errorData = await response.json();
@@ -260,6 +291,57 @@ export function TaskForm({ mode, projectId, initialData, parentTaskId }: TaskFor
                 value={formData.labels}
                 onChange={(value) => setFormData({ ...formData, labels: value })}
               />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Git Configuration</h3>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4" />
+                Base Branch for PR
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={formData.baseBranch || "_default_"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, baseBranch: value === "_default_" ? null : value })
+                  }
+                  disabled={isLoadingBranches}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Use project default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_default_">
+                      Use project default ({defaultBranch || "main"})
+                    </SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchBranches}
+                  disabled={isLoadingBranches}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoadingBranches ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isLoadingBranches
+                  ? "Loading branches..."
+                  : branches.length > 0
+                    ? `${branches.length} branches available. Select a branch or use project default.`
+                    : "Could not load branches. Using project default."}
+              </p>
             </div>
           </div>
 

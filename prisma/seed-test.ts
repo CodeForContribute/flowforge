@@ -46,6 +46,8 @@ async function main() {
       defaultBranch: "main",
       reviewers: ["reviewer1", "reviewer2"],
       userId: testUser.id,
+      projectKey: "TP",
+      taskCounter: 6, // Will be incremented by tasks created below
     },
   });
 
@@ -131,6 +133,8 @@ async function main() {
       taskType: "STORY",
       storyPoints: 5,
       projectId: testProject.id,
+      taskNumber: 1,
+      taskKey: "TP-1",
       labels: { connect: [{ id: "label-feature" }] },
     },
   });
@@ -145,6 +149,8 @@ async function main() {
       taskType: "BUG",
       storyPoints: 2,
       projectId: testProject.id,
+      taskNumber: 2,
+      taskKey: "TP-2",
       labels: { connect: [{ id: "label-bug" }] },
     },
   });
@@ -162,6 +168,8 @@ async function main() {
       projectId: testProject.id,
       sprintId: activeSprint.id,
       assigneeId: testUser.id,
+      taskNumber: 3,
+      taskKey: "TP-3",
     },
   });
 
@@ -177,6 +185,8 @@ async function main() {
       projectId: testProject.id,
       sprintId: activeSprint.id,
       assigneeId: testUser.id,
+      taskNumber: 4,
+      taskKey: "TP-4",
       labels: { connect: [{ id: "label-urgent" }] },
     },
   });
@@ -195,6 +205,8 @@ async function main() {
       prNumber: 42,
       prUrl: "https://github.com/test-owner/test-repo/pull/42",
       branchName: "feature/navigation-update",
+      taskNumber: 5,
+      taskKey: "TP-5",
     },
   });
 
@@ -212,6 +224,8 @@ async function main() {
       prNumber: 38,
       prUrl: "https://github.com/test-owner/test-repo/pull/38",
       branchName: "feature/dark-mode",
+      taskNumber: 6,
+      taskKey: "TP-6",
     },
   });
 

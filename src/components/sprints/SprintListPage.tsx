@@ -27,15 +27,17 @@ interface Sprint {
 interface SprintListPageProps {
   sprints: Sprint[];
   projectId: string;
+  projectKey?: string;
 }
 
-export function SprintListPage({ sprints, projectId }: SprintListPageProps) {
+export function SprintListPage({ sprints, projectId, projectKey }: SprintListPageProps) {
   const [showForm, setShowForm] = useState(false);
 
   return (
     <>
       <SprintList
         sprints={sprints}
+        projectKey={projectKey}
         onCreateSprint={() => setShowForm(true)}
       />
       <SprintForm

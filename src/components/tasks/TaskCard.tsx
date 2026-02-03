@@ -4,21 +4,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { TaskTypeBadge } from "./TaskTypeBadge";
 import { AIEstimateBadge } from "@/components/task";
-import { GitPullRequest, MessageSquare, GripVertical, Calendar, Hash } from "lucide-react";
+import { GitPullRequest, MessageSquare, GripVertical, Calendar, Layers, CheckCircle2, Circle } from "lucide-react";
 import { TaskPriority, TaskType, TaskStatus } from "@/types";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
+
+interface Subtask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  taskKey?: string;
+}
 
 interface TaskCardProps {
   task: {
@@ -30,6 +35,7 @@ interface TaskCardProps {
     taskType?: TaskType;
     storyPoints?: number | null;
     dueDate?: Date | string | null;
+    taskKey?: string;
     prNumber: number | null;
     prUrl: string | null;
     projectId: string;
@@ -39,14 +45,23 @@ interface TaskCardProps {
       image: string | null;
     } | null;
     labels?: { id: string; name: string; color: string }[];
+    subtasks?: Subtask[];
     _count?: {
       comments: number;
       subtasks?: number;
     };
   };
+  projectKey?: string;
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+const priorityColors: Record<TaskPriority, string> = {
+  LOW: "bg-slate-400",
+  MEDIUM: "bg-blue-500",
+  HIGH: "bg-amber-500",
+  URGENT: "bg-red-500",
+};
+
+export function TaskCard({ task, projectKey }: TaskCardProps) {
   const router = useRouter();
   const {
     attributes,
@@ -64,6 +79,7 @@ export function TaskCard({ task }: TaskCardProps) {
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
+  const taskUrl = `/project/${projectKey || task.projectId}/task/${task.taskKey || task.id}`;
 
   return (
     <div
@@ -79,129 +95,212 @@ export function TaskCard({ task }: TaskCardProps) {
       <Card
         className={cn(
           "relative overflow-hidden transition-all duration-200",
-          "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
-          "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:from-transparent before:via-primary/0 before:to-transparent before:transition-all",
-          "hover:before:via-primary/60",
-          isOverdue && "border-destructive/50 bg-destructive/5",
+          "bg-card hover:bg-accent/50 dark:hover:bg-accent/30",
+          "border border-border/60 hover:border-primary/50",
+          "hover:shadow-md hover:shadow-primary/5",
+          isOverdue && "border-l-2 border-l-destructive",
           (task.status === "MERGED" || task.status === "CLOSED") && "opacity-60"
         )}
       >
-        <CardHeader className="p-3 pb-0">
-          <div className="flex items-start gap-2">
+        {/* Priority indicator bar */}
+        <div className={cn("absolute top-0 left-0 w-1 h-full", priorityColors[task.priority])} />
+
+        <div className="p-3 pl-4">
+          {/* Top row: Drag handle, Task Key, Type Icon */}
+          <div className="flex items-center gap-2 mb-2">
             <button
-              className="mt-0.5 cursor-grab touch-none opacity-0 group-hover:opacity-100 transition-opacity"
+              className="cursor-grab touch-none opacity-0 group-hover:opacity-100 transition-opacity -ml-1"
               {...attributes}
               {...listeners}
             >
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
+              <GripVertical className="h-4 w-4 text-muted-foreground/50" />
             </button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {task.taskType && (
-                  <TaskTypeBadge type={task.taskType} size="sm" showLabel={false} />
-                )}
-                <Link
-                  href={`/project/${task.projectId}/task/${task.id}`}
-                  className={cn(
-                    "font-medium text-sm hover:text-primary transition-colors truncate",
-                    (task.status === "MERGED" || task.status === "CLOSED") &&
-                      "line-through text-muted-foreground"
-                  )}
-                >
-                  {task.title}
-                </Link>
+
+            {task.taskKey && (
+              <Link
+                href={taskUrl}
+                className="text-xs font-mono font-semibold text-primary hover:text-primary/80 transition-colors"
+              >
+                {task.taskKey}
+              </Link>
+            )}
+
+            {task.taskType && (
+              <TaskTypeBadge type={task.taskType} size="sm" showLabel={false} />
+            )}
+
+            <div className="flex-1" />
+
+            {task.assignee && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Avatar className="h-6 w-6 ring-2 ring-background">
+                    <AvatarImage src={task.assignee.image || undefined} />
+                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-medium">
+                      {task.assignee.name?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{task.assignee.name || "Unassigned"}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          {/* Title */}
+          <Link
+            href={taskUrl}
+            className={cn(
+              "block text-sm font-medium leading-snug hover:text-primary transition-colors",
+              (task.status === "MERGED" || task.status === "CLOSED") &&
+                "line-through text-muted-foreground",
+              task.subtasks && task.subtasks.length > 0 ? "mb-2" : "mb-2"
+            )}
+          >
+            {task.title}
+          </Link>
+
+          {/* Subtasks List */}
+          {task.subtasks && task.subtasks.length > 0 && (
+            <div className="mb-3 pl-1 space-y-1">
+              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Subtasks ({task.subtasks.filter(s => s.status === "MERGED" || s.status === "CLOSED").length}/{task.subtasks.length})
               </div>
-              {task.labels && task.labels.length > 0 && (
-                <div className="flex gap-1 mt-1.5 flex-wrap">
-                  {task.labels.slice(0, 2).map((label) => (
-                    <Badge
-                      key={label.id}
-                      style={{ backgroundColor: label.color }}
-                      className="text-white text-[10px] px-1.5 py-0 rounded-full"
-                    >
-                      {label.name}
-                    </Badge>
-                  ))}
-                  {task.labels.length > 2 && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                      +{task.labels.length - 2}
-                    </Badge>
-                  )}
-                </div>
+              {task.subtasks.slice(0, 4).map((subtask) => {
+                const isComplete = subtask.status === "MERGED" || subtask.status === "CLOSED";
+                const subtaskUrl = `/project/${projectKey || task.projectId}/task/${subtask.taskKey || subtask.id}`;
+                return (
+                  <Link
+                    key={subtask.id}
+                    href={subtaskUrl}
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs hover:text-primary transition-colors group/subtask",
+                      isComplete && "text-muted-foreground"
+                    )}
+                  >
+                    {isComplete ? (
+                      <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                    )}
+                    <span className={cn(
+                      "truncate",
+                      isComplete && "line-through"
+                    )}>
+                      {subtask.taskKey && (
+                        <span className="font-mono text-[10px] text-primary/70 mr-1">{subtask.taskKey}</span>
+                      )}
+                      {subtask.title}
+                    </span>
+                  </Link>
+                );
+              })}
+              {task.subtasks.length > 4 && (
+                <Link
+                  href={taskUrl}
+                  className="text-[10px] text-muted-foreground hover:text-primary transition-colors pl-4"
+                >
+                  +{task.subtasks.length - 4} more
+                </Link>
               )}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-3 pt-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <PriorityBadge priority={task.priority} size="sm" />
-              {task.storyPoints ? (
-                <span className="flex items-center gap-0.5 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full">
-                  <Hash className="h-3 w-3" />
-                  {task.storyPoints}
-                </span>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <AIEstimateBadge
-                        taskId={task.id}
-                        currentStoryPoints={task.storyPoints ?? null}
-                        compact={true}
-                        onEstimateApplied={() => router.refresh()}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Get AI-powered story point estimate</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {dueDate && (
+          )}
+
+          {/* Labels */}
+          {task.labels && task.labels.length > 0 && (
+            <div className="flex gap-1.5 mb-3 flex-wrap">
+              {task.labels.slice(0, 3).map((label) => (
                 <span
-                  className={cn(
-                    "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full",
-                    isOverdue
-                      ? "text-destructive bg-destructive/10"
-                      : "text-muted-foreground bg-muted/50"
-                  )}
+                  key={label.id}
+                  style={{ backgroundColor: `${label.color}20`, color: label.color, borderColor: `${label.color}40` }}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
                 >
-                  <Calendar className="h-3 w-3" />
-                  {format(dueDate, "MMM d")}
+                  {label.name}
                 </span>
-              )}
-              {task.prUrl && (
-                <a
-                  href={task.prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <GitPullRequest className="h-3 w-3" />
-                  #{task.prNumber}
-                </a>
-              )}
-              {task._count && task._count.comments > 0 && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MessageSquare className="h-3 w-3" />
-                  {task._count.comments}
+              ))}
+              {task.labels.length > 3 && (
+                <span className="text-[10px] text-muted-foreground px-1.5 py-0.5">
+                  +{task.labels.length - 3}
                 </span>
-              )}
-              {task.assignee && (
-                <Avatar className="h-5 w-5 ring-1 ring-border/50">
-                  <AvatarImage src={task.assignee.image || undefined} />
-                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                    {task.assignee.name?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
               )}
             </div>
+          )}
+
+          {/* Bottom row: Metadata */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {/* Story Points */}
+            {task.storyPoints ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center gap-1 font-medium">
+                    <Layers className="h-3 w-3" />
+                    {task.storyPoints}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{task.storyPoints} story points</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <AIEstimateBadge
+                taskId={task.id}
+                currentStoryPoints={task.storyPoints ?? null}
+                compact={true}
+                onEstimateApplied={() => router.refresh()}
+              />
+            )}
+
+            {/* Due Date */}
+            {dueDate && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      "flex items-center gap-1",
+                      isOverdue && "text-destructive font-medium"
+                    )}
+                  >
+                    <Calendar className="h-3 w-3" />
+                    {format(dueDate, "MMM d")}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Due {format(dueDate, "MMMM d, yyyy")}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* PR Link */}
+            {task.prUrl && (
+              <a
+                href={task.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GitPullRequest className="h-3 w-3" />
+                #{task.prNumber}
+              </a>
+            )}
+
+            {/* Comments */}
+            {task._count && task._count.comments > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="h-3 w-3" />
+                    {task._count.comments}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{task._count.comments} comment{task._count.comments > 1 ? 's' : ''}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

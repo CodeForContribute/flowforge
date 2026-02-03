@@ -70,6 +70,7 @@ describe('github service', () => {
 
   describe('getOctokit', () => {
     it('should create an Octokit instance with access token', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Octokit } = require('@octokit/rest');
       getOctokit(accessToken);
 

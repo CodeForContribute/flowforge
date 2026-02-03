@@ -10,6 +10,7 @@ interface ProjectCardProps {
     name: string;
     description: string | null;
     githubRepo: string;
+    projectKey?: string;
     taskCount: number;
     activePRCount: number;
     updatedAt: Date;
@@ -18,7 +19,7 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   return (
-    <Link href={`/project/${project.id}`}>
+    <Link href={`/project/${project.projectKey || project.id}`}>
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">

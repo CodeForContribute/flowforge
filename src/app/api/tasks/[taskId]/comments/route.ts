@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { parseMentions, notifyMention, notifyWatchersCommentAdded } from "@/services/notifications";
+import { isTaskKey } from "@/lib/task-lookup";
 
 const createCommentSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -25,10 +26,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const data = createCommentSchema.parse(body);
 
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Get task with project info
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const comment = await prisma.comment.create({
       data: {
         content: data.content,
-        taskId,
+        taskId: task.id,
         userId: session.user.id,
         isSystem: false,
         mentions: mentionedUserIds,
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await notifyMention(
           mentioned.userId,
           commenterName,
-          taskId,
+          task.id,
           task.title,
           task.project.name,
           data.content
@@ -81,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Notify watchers (exclude commenter and already-notified mentioned users)
     const excludeFromWatcherNotification = [session.user.id, ...mentionedUserIds];
     await notifyWatchersCommentAdded(
-      taskId,
+      task.id,
       task.title,
       task.project.name,
       commenterName,

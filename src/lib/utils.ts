@@ -31,7 +31,13 @@ export function formatDateTime(date: Date | string): string {
   });
 }
 
-export function generateBranchName(taskTitle: string, taskId: string): string {
+export function generateBranchName(taskTitle: string, taskId: string, taskKey?: string): string {
+  if (taskKey) {
+    // Use human-readable taskKey format: feature/FF-123-slug
+    const slug = slugify(taskTitle).slice(0, 30);
+    return `feature/${taskKey.toLowerCase()}-${slug}`;
+  }
+  // Fallback to old format for backwards compatibility
   const slug = slugify(taskTitle).slice(0, 40);
   const shortId = taskId.slice(-6);
   return `flowforge/${slug}-${shortId}`;

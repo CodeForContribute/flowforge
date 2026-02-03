@@ -30,6 +30,7 @@ const updateTaskSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   sprintId: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  baseBranch: z.string().nullable().optional(),
   labelIds: z.array(z.string()).optional(),
   generatedPrompt: z.string().optional(),
 });

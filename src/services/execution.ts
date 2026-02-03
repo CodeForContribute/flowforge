@@ -127,11 +127,14 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
   let generatedFiles: GeneratedFile[] = [];
   let summary = "";
 
+  // Use task-specific base branch or fall back to project default
+  const baseBranch = task.baseBranch || project.defaultBranch;
+
   try {
     // Step 1: Create branch (or reuse existing)
     let executionId = await createExecution(taskId, "CREATE_BRANCH", {
       branchName,
-      baseBranch: project.defaultBranch,
+      baseBranch,
     });
 
     try {
@@ -140,7 +143,7 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       if (branchAlreadyExists) {
         await completeExecution(executionId, { branchName, reused: true });
       } else {
-        await createBranch(accessToken, owner, repo, branchName, project.defaultBranch);
+        await createBranch(accessToken, owner, repo, branchName, baseBranch);
         await completeExecution(executionId, { branchName, reused: false });
       }
     } catch (error) {
@@ -312,6 +315,7 @@ export async function continueExecution(options: ContinueExecutionOptions): Prom
 
   const { owner, repo } = repoInfo;
   const branchName = task.branchName;
+  const baseBranch = task.baseBranch || project.defaultBranch;
   const generatedFiles = generatedCode.files as unknown as GeneratedFile[];
   const summary = generatedCode.summary;
 
@@ -362,7 +366,7 @@ export async function continueExecution(options: ContinueExecutionOptions): Prom
     // Step 2: Create pull request (or reuse existing)
     executionId = await createExecution(taskId, "CREATE_PR", {
       title: task.title,
-      baseBranch: project.defaultBranch,
+      baseBranch,
     });
 
     try {
@@ -417,7 +421,7 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
           prTitle,
           prBody,
           branchName,
-          project.defaultBranch
+          baseBranch
         );
         prNumber = pr.number;
         prUrl = pr.html_url;
