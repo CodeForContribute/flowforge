@@ -66,6 +66,10 @@ const columnStyles: Record<TaskStatus, {
     dotColor: "bg-orange-500",
     bgColor: "bg-orange-50/30 dark:bg-orange-900/10",
   },
+  HAS_CONFLICTS: {
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50/30 dark:bg-red-900/10",
+  },
   APPROVED: {
     dotColor: "bg-emerald-500",
     bgColor: "bg-emerald-50/30 dark:bg-emerald-900/10",

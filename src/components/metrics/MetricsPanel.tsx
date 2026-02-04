@@ -4,14 +4,13 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Clock,
   AlertTriangle,
   Target,
   Users,
@@ -19,13 +18,9 @@ import {
   TrendingDown,
   Calendar,
   CheckCircle2,
-  Circle,
   Zap,
   Activity,
-  GitPullRequest,
   Layers,
-  Timer,
-  Award,
   Flame,
   ArrowUp,
   ArrowDown,
@@ -37,7 +32,6 @@ import { TasksByStatusChart } from "./TasksByStatusChart";
 import { SprintProgressBar } from "./SprintProgressBar";
 import { TaskStatus, TaskPriority, SprintStatus } from "@/types";
 import { cn } from "@/lib/utils";
-import { format, differenceInDays, isWithinInterval, subDays } from "date-fns";
 
 interface Task {
   id: string;

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { Plus, ArrowLeft, Layers, LayoutList } from "lucide-react";
+import { Plus, ArrowLeft, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";

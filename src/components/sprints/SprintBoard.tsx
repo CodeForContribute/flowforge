@@ -119,7 +119,6 @@ function DroppableColumn({
 
 export function SprintBoard({
   sprint,
-  projectKey,
   sprintTasks: initialSprintTasks,
   backlogTasks: initialBacklogTasks,
 }: SprintBoardProps) {

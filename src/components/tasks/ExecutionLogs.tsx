@@ -26,6 +26,9 @@ import {
   Reply,
   History,
   Eye,
+  AlertTriangle,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -46,6 +49,9 @@ const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch;
   MERGE_PR: { label: "Merge Pull Request", icon: GitMerge, color: "text-emerald-500" },
   ANALYZE_COMMENT: { label: "Analyze Comment", icon: Search, color: "text-indigo-500" },
   RESPOND_TO_COMMENT: { label: "Respond to Comment", icon: Reply, color: "text-pink-500" },
+  CHECK_CONFLICTS: { label: "Check Conflicts", icon: AlertTriangle, color: "text-yellow-500" },
+  UPDATE_BRANCH: { label: "Update Branch", icon: RefreshCw, color: "text-blue-400" },
+  RESOLVE_CONFLICTS: { label: "Resolve Conflicts", icon: Sparkles, color: "text-purple-500" },
 };
 
 const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckCircle; className: string; bgColor: string }> = {

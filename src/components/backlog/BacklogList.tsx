@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -44,12 +43,8 @@ import {
   ChevronRight,
   MoreHorizontal,
   Sparkles,
-  Clock,
   AlertTriangle,
   CheckCircle2,
-  Circle,
-  Play,
-  GripVertical,
   Calendar,
   MessageSquare,
   GitPullRequest,
@@ -786,7 +781,7 @@ function CompactTaskTable({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task, index) => (
+          {tasks.map((task) => (
             <tr
               key={task.id}
               className={cn(

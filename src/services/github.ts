@@ -705,7 +705,7 @@ export async function updatePRBranch(
     return {
       success: true,
       message: data.message || "Branch updated successfully",
-      sha: data.sha,
+      sha: (data as { sha?: string }).sha,
     };
   } catch (error) {
     // If automatic update fails due to conflicts, return error
@@ -719,35 +719,6 @@ export async function updatePRBranch(
   }
 }
 
-/**
- * Get file content from a specific branch/ref
- */
-export async function getFileContent(
-  accessToken: string,
-  owner: string,
-  repo: string,
-  path: string,
-  ref: string
-): Promise<string | null> {
-  const octokit = getOctokit(accessToken);
-
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref,
-    });
-
-    if ("content" in data && data.content) {
-      return Buffer.from(data.content, "base64").toString("utf-8");
-    }
-    return null;
-  } catch (error) {
-    // File doesn't exist in this ref
-    return null;
-  }
-}
 
 /**
  * Get content of conflicting files from both branches for AI resolution

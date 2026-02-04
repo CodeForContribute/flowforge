@@ -209,6 +209,19 @@ export interface WebhookEvent {
   createdAt: Date;
 }
 
+// Attachment type matching Prisma schema
+export interface Attachment {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  createdAt: Date;
+  taskId: string;
+  uploadedById: string;
+  uploadedBy?: User;
+}
+
 // Extended types with relations
 export type TaskWithRelations = Task & {
   project: Project;
@@ -219,6 +232,8 @@ export type TaskWithRelations = Task & {
   parentTask?: Task | null;
   subtasks?: Task[];
   labels?: Label[];
+  attachments?: Attachment[];
+  conflictInfo?: MergeConflictInfo | null;
 };
 
 export type ProjectWithRelations = Project & {

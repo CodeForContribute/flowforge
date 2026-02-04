@@ -26,7 +26,7 @@ interface ConflictPanelProps {
   prNumber: number;
 }
 
-export function ConflictPanel({ taskId, conflictInfo, prNumber }: ConflictPanelProps) {
+export function ConflictPanel({ taskId, conflictInfo }: ConflictPanelProps) {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -54,7 +54,7 @@ export function ConflictPanel({ taskId, conflictInfo, prNumber }: ConflictPanelP
       } else {
         setResult({ type: "error", message: data.error || "Failed to check conflicts" });
       }
-    } catch (error) {
+    } catch {
       setResult({ type: "error", message: "Failed to check conflicts" });
     } finally {
       setIsChecking(false);
@@ -89,7 +89,7 @@ export function ConflictPanel({ taskId, conflictInfo, prNumber }: ConflictPanelP
           message: data.message || "Failed to update branch",
         });
       }
-    } catch (error) {
+    } catch {
       setResult({ type: "error", message: "Failed to update branch" });
     } finally {
       setIsUpdating(false);
@@ -120,7 +120,7 @@ export function ConflictPanel({ taskId, conflictInfo, prNumber }: ConflictPanelP
           message: data.message || "AI could not resolve conflicts",
         });
       }
-    } catch (error) {
+    } catch {
       setResult({ type: "error", message: "Failed to resolve conflicts" });
     } finally {
       setIsResolving(false);

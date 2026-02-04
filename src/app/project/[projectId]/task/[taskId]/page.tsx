@@ -6,6 +6,7 @@ import { TaskDetail } from "@/components/tasks/TaskDetail";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { isProjectKey, isTaskKey } from "@/lib/task-lookup";
+import { MergeConflictInfo } from "@/types";
 
 interface TaskPageProps {
   params: Promise<{ projectId: string; taskId: string }>;
@@ -97,6 +98,12 @@ export default async function TaskPage({ params }: TaskPageProps) {
     notFound();
   }
 
+  // Cast conflictInfo from Prisma JsonValue to proper type
+  const taskWithTypedConflictInfo = {
+    ...task,
+    conflictInfo: task.conflictInfo as MergeConflictInfo | null,
+  };
+
   const projects = await prisma.project.findMany({
     where: {
       OR: [
@@ -114,7 +121,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">
-          <TaskDetail task={task} currentUserId={session.user.id} />
+          <TaskDetail task={taskWithTypedConflictInfo} currentUserId={session.user.id} />
         </main>
       </div>
     </div>

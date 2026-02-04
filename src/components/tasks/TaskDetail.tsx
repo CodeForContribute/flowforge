@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Task, Comment, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority, MergeConflictInfo } from "@/types";
+import { Task, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority, MergeConflictInfo } from "@/types";
 import { useTaskEventListener } from "@/contexts/TaskEventContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
