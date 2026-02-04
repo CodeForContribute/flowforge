@@ -1,9 +1,17 @@
 import OpenAI from "openai";
 import type { CodeGenerationResult, ReviewResponseResult, GeneratedFile, CommentClassification, DiscussionReplyResult } from "@/types";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors when OPENAI_API_KEY is not set
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 interface GenerateCodeOptions {
   prompt: string;
@@ -13,7 +21,7 @@ interface GenerateCodeOptions {
 export async function generateCode(options: GenerateCodeOptions): Promise<CodeGenerationResult> {
   const { prompt, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -92,7 +100,7 @@ export async function respondToReview(
 ): Promise<ReviewResponseResult> {
   const { prompt, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -163,7 +171,7 @@ export async function classifyComment(
 ): Promise<CommentClassification> {
   const { commentBody, commentAuthor, taskTitle, taskDescription, prContext, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 1024,
     messages: [
@@ -263,7 +271,7 @@ export async function generateDiscussionReply(
     ? `\n\n**Relevant Files:**\n${currentFiles.map((f) => `- ${f.path}`).join("\n")}`
     : "";
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 2048,
     messages: [
@@ -338,7 +346,7 @@ export async function generateCodeFromComment(
     .map((f) => `**File: ${f.path}**\n\`\`\`\n${f.content}\n\`\`\``)
     .join("\n\n");
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -483,7 +491,7 @@ ${conflictDescriptions}
 Merge these changes intelligently, preserving the intent of the task while incorporating any necessary changes from the base branch.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       max_tokens: 8000,
       messages: [
