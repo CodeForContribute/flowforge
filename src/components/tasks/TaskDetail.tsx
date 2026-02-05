@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Task, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority, MergeConflictInfo } from "@/types";
+import { Task, Execution, Project, User, Label, TaskType, TaskStatus, TaskPriority, MergeConflictInfo, WorkflowDefinition } from "@/types";
 import { useTaskEventListener } from "@/contexts/TaskEventContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,9 @@ import { CommentsSection } from "./CommentsSection";
 import { AttachmentsSection } from "./AttachmentsSection";
 import { CodeReviewPanel } from "./CodeReviewPanel";
 import { ConflictPanel } from "./ConflictPanel";
+import { TaskLinksSection } from "./TaskLinksSection";
+import { TimeTrackingSection } from "./TimeTrackingSection";
+import { VoteButton } from "./VoteButton";
 import { AIEstimateBadge } from "@/components/task";
 import {
   Tooltip,
@@ -61,6 +64,7 @@ import {
   Pencil,
   Save,
   X,
+  Package,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
@@ -68,7 +72,7 @@ import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TaskWithRelations = Task & {
-  project: Project;
+  project: Project & { workflow?: WorkflowDefinition | null };
   comments: {
     id: string;
     content: string;
@@ -111,6 +115,11 @@ type TaskWithRelations = Task & {
     uploadedBy: { id: string; name: string | null; image: string | null };
   }[];
   conflictInfo?: MergeConflictInfo | null;
+  // Phase 6: Time tracking
+  originalEstimate?: number | null;
+  timeRemaining?: number | null;
+  // Phase 6: Version
+  version?: { id: string; name: string; status: string; releaseDate: Date | null } | null;
 };
 
 interface TaskDetailProps {
@@ -373,6 +382,7 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                       {task.storyPoints} pts
                     </Badge>
                   )}
+                  <VoteButton taskId={task.id} size="sm" />
                 </div>
 
                 {/* Title */}
@@ -520,6 +530,13 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
               </CardContent>
             </Card>
           )}
+
+          {/* Linked Issues */}
+          <TaskLinksSection
+            taskId={task.id}
+            projectId={task.projectId}
+            projectKey={task.project.projectKey}
+          />
 
           {/* Generated Prompt */}
           {task.generatedPrompt && (
@@ -776,6 +793,13 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
             </CardContent>
           </Card>
 
+          {/* Time Tracking */}
+          <TimeTrackingSection
+            taskId={task.id}
+            originalEstimate={task.originalEstimate ?? null}
+            timeRemaining={task.timeRemaining ?? null}
+          />
+
           {/* Details Card */}
           <Card>
             <CardHeader className="pb-3">
@@ -797,6 +821,7 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                     setStatus(newStatus);
                     router.refresh();
                   }}
+                  workflow={task.project.workflow}
                 />
               </div>
 
@@ -879,6 +904,25 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                   {task.storyPoints ?? "Not estimated"}
                 </span>
               </div>
+
+              {/* Version */}
+              {task.version && (
+                <>
+                  <Separator />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Package className="h-3 w-3" />
+                      Version
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{task.version.name}</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {task.version.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

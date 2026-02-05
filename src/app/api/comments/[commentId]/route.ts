@@ -110,6 +110,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Only the comment author or project owner can delete
     const isOwner = comment.userId === session.user.id;
     const isProjectOwner = comment.task.project.userId === session.user.id;
+    // TODO: For org projects, also check org membership
 
     if (!isOwner && !isProjectOwner) {
       return NextResponse.json({ error: "You cannot delete this comment" }, { status: 403 });

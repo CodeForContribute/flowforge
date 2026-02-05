@@ -58,14 +58,18 @@ export default async function MembersPage({ params }: MembersPageProps) {
     orderBy: { createdAt: "asc" },
   });
 
-  // Combine owner with members
+  // Combine owner (if personal project) with members
+  const ownerMember = project.userId && project.user
+    ? [{
+        id: "owner",
+        role: "OWNER" as MemberRole,
+        userId: project.userId,
+        user: project.user,
+      }]
+    : [];
+
   const allMembers = [
-    {
-      id: "owner",
-      role: "OWNER" as MemberRole,
-      userId: project.userId,
-      user: project.user,
-    },
+    ...ownerMember,
     ...projectMembers.map((m) => ({
       id: m.id,
       role: m.role as MemberRole,

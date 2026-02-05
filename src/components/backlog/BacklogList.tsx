@@ -32,6 +32,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { TaskTypeBadge } from "@/components/tasks/TaskTypeBadge";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
+import { AdvancedSearchInput } from "@/components/tasks/AdvancedSearchInput";
 import {
   Target,
   Loader2,
@@ -53,7 +54,7 @@ import {
   X,
   Plus,
 } from "lucide-react";
-import { TaskStatus, TaskPriority, TaskType, SprintStatus } from "@/types";
+import { TaskStatus, TaskPriority, TaskType, SprintStatus, SearchClause } from "@/types";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday, formatDistanceToNow } from "date-fns";
 
@@ -122,12 +123,103 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [groupBy, setGroupBy] = useState<GroupBy>("priority");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["URGENT", "HIGH", "MEDIUM", "LOW", "EPIC", "STORY", "TASK", "SUBTASK", "BUG"]));
+  const [, setSearchQuery] = useState("");
+  const [searchClauses, setSearchClauses] = useState<SearchClause[]>([]);
 
   // Update tasks when filter changes
   useEffect(() => {
     setTasks(initialTasks);
     setSelectedTasks(new Set());
   }, [initialTasks]);
+
+  // Filter tasks based on advanced search clauses
+  const filteredTasks = useMemo(() => {
+    if (searchClauses.length === 0) return tasks;
+
+    return tasks.filter((task) => {
+      return searchClauses.every((clause) => {
+        const { field, operator, value } = clause;
+
+        // Get the task value for the field
+        let taskValue: string | number | string[] | null = null;
+        switch (field) {
+          case "status":
+            taskValue = task.status;
+            break;
+          case "priority":
+            taskValue = task.priority;
+            break;
+          case "type":
+            taskValue = task.taskType;
+            break;
+          case "assignee":
+            taskValue = task.assignee?.name || null;
+            break;
+          case "storypoints":
+            taskValue = task.storyPoints;
+            break;
+          case "label":
+            taskValue = task.labels.map(l => l.name);
+            break;
+          case "text":
+            taskValue = `${task.title} ${task.description}`.toLowerCase();
+            break;
+          default:
+            return true;
+        }
+
+        // Apply operator
+        const strValue = String(value || "").toLowerCase();
+        const strTaskValue = Array.isArray(taskValue)
+          ? taskValue.map(v => v.toLowerCase())
+          : String(taskValue || "").toLowerCase();
+
+        switch (operator) {
+          case "=":
+            return Array.isArray(strTaskValue)
+              ? strTaskValue.includes(strValue)
+              : strTaskValue === strValue;
+          case "!=":
+            return Array.isArray(strTaskValue)
+              ? !strTaskValue.includes(strValue)
+              : strTaskValue !== strValue;
+          case "~":
+            return Array.isArray(strTaskValue)
+              ? strTaskValue.some(v => v.includes(strValue))
+              : strTaskValue.includes(strValue);
+          case "!~":
+            return Array.isArray(strTaskValue)
+              ? !strTaskValue.some(v => v.includes(strValue))
+              : !strTaskValue.includes(strValue);
+          case ">":
+            return Number(taskValue) > Number(value);
+          case ">=":
+            return Number(taskValue) >= Number(value);
+          case "<":
+            return Number(taskValue) < Number(value);
+          case "<=":
+            return Number(taskValue) <= Number(value);
+          case "in":
+            const inValues = Array.isArray(value) ? value.map(v => v.toLowerCase()) : [strValue];
+            return inValues.includes(strTaskValue as string);
+          case "not in":
+            const notInValues = Array.isArray(value) ? value.map(v => v.toLowerCase()) : [strValue];
+            return !notInValues.includes(strTaskValue as string);
+          case "is":
+            return !taskValue || (Array.isArray(taskValue) && taskValue.length === 0);
+          case "is not":
+            return taskValue && (!Array.isArray(taskValue) || taskValue.length > 0);
+          default:
+            return true;
+        }
+      });
+    });
+  }, [tasks, searchClauses]);
+
+  function handleAdvancedSearch(query: string, clauses: SearchClause[]) {
+    setSearchQuery(query);
+    setSearchClauses(clauses);
+  }
 
   // Listen for task status changes from other components
   useTaskEventListener(
@@ -147,32 +239,32 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
 
   // Calculate stats
   const stats = useMemo(() => {
-    const total = tasks.length;
-    const totalPoints = tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-    const urgent = tasks.filter(t => t.priority === "URGENT").length;
-    const overdue = tasks.filter(t => t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))).length;
-    const unestimated = tasks.filter(t => !t.storyPoints).length;
+    const total = filteredTasks.length;
+    const totalPoints = filteredTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+    const urgent = filteredTasks.filter(t => t.priority === "URGENT").length;
+    const overdue = filteredTasks.filter(t => t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))).length;
+    const unestimated = filteredTasks.filter(t => !t.storyPoints).length;
     return { total, totalPoints, urgent, overdue, unestimated };
-  }, [tasks]);
+  }, [filteredTasks]);
 
   // Group tasks
   const groupedTasks = useMemo(() => {
     if (groupBy === "none") {
-      return { "All Tasks": tasks };
+      return { "All Tasks": filteredTasks };
     }
 
     const groups: Record<string, Task[]> = {};
 
     if (groupBy === "priority") {
       priorityOrder.forEach(p => {
-        const filtered = tasks.filter(t => t.priority === p);
+        const filtered = filteredTasks.filter(t => t.priority === p);
         if (filtered.length > 0) {
           groups[p] = filtered;
         }
       });
     } else if (groupBy === "type") {
       (["EPIC", "STORY", "TASK", "SUBTASK", "BUG"] as TaskType[]).forEach(type => {
-        const filtered = tasks.filter(t => t.taskType === type);
+        const filtered = filteredTasks.filter(t => t.taskType === type);
         if (filtered.length > 0) {
           groups[type] = filtered;
         }
@@ -180,7 +272,7 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
     } else if (groupBy === "status") {
       const statusOrder: TaskStatus[] = ["BACKLOG", "TODO", "IN_PROGRESS", "GENERATING", "PR_OPEN", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "MERGED", "CLOSED"];
       statusOrder.forEach(status => {
-        const filtered = tasks.filter(t => t.status === status);
+        const filtered = filteredTasks.filter(t => t.status === status);
         if (filtered.length > 0) {
           groups[status] = filtered;
         }
@@ -188,7 +280,7 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
     }
 
     return groups;
-  }, [tasks, groupBy]);
+  }, [filteredTasks, groupBy]);
 
   function toggleTaskSelection(taskId: string) {
     setSelectedTasks((prev) => {
@@ -203,10 +295,10 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
   }
 
   function selectAll() {
-    if (selectedTasks.size === tasks.length) {
+    if (selectedTasks.size === filteredTasks.length) {
       setSelectedTasks(new Set());
     } else {
-      setSelectedTasks(new Set(tasks.map((t) => t.id)));
+      setSelectedTasks(new Set(filteredTasks.map((t) => t.id)));
     }
   }
 
@@ -222,31 +314,44 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
     });
   }
 
-  async function assignToSprint(sprintId: string) {
+  async function performBulkAction(action: string, value?: string | string[] | null) {
     if (selectedTasks.size === 0) return;
     setIsAssigning(true);
 
     try {
-      await Promise.all(
-        Array.from(selectedTasks).map((taskId) =>
-          fetch(`/api/tasks/${taskId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sprintId }),
-          })
-        )
-      );
+      const response = await fetch("/api/tasks/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskIds: Array.from(selectedTasks),
+          action,
+          value,
+        }),
+      });
 
-      setTasks((prev) => prev.filter((t) => !selectedTasks.has(t.id)));
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("Bulk action error:", data.error);
+        alert(data.error || "Failed to perform bulk action");
+        return;
+      }
+
+      // If action moves tasks out of backlog (set_sprint), remove them from view
+      if (action === "set_sprint" && value) {
+        setTasks((prev) => prev.filter((t) => !selectedTasks.has(t.id)));
+      }
+
       setSelectedTasks(new Set());
       router.refresh();
     } catch (error) {
-      console.error("Error assigning tasks:", error);
-      alert("Failed to assign some tasks");
+      console.error("Error performing bulk action:", error);
+      alert("Failed to perform bulk action");
     } finally {
       setIsAssigning(false);
     }
   }
+
 
   function getGroupLabel(key: string): string {
     if (groupBy === "priority") {
@@ -265,6 +370,13 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
 
   return (
     <div className="space-y-6" data-testid="backlog-list">
+      {/* Advanced Search */}
+      <AdvancedSearchInput
+        onSearch={handleAdvancedSearch}
+        placeholder="Search tasks... (e.g., status = TODO AND priority = HIGH)"
+        className="max-w-2xl"
+      />
+
       {/* Quick Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 dark:from-violet-500/20 dark:to-purple-500/20 rounded-xl p-4 border border-violet-500/20">
@@ -375,8 +487,49 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
 
           <div className="flex-1" />
 
-          <Select onValueChange={assignToSprint} disabled={isAssigning}>
-            <SelectTrigger className="w-52 bg-background">
+          {/* Bulk Status */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={isAssigning}>
+              <Button variant="outline" size="sm">
+                Set Status
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {(["BACKLOG", "TODO", "IN_PROGRESS", "CLOSED"] as TaskStatus[]).map((status) => (
+                <DropdownMenuItem
+                  key={status}
+                  onClick={() => performBulkAction("set_status", status)}
+                >
+                  {status.replace(/_/g, " ")}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Bulk Priority */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={isAssigning}>
+              <Button variant="outline" size="sm">
+                Set Priority
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {(["LOW", "MEDIUM", "HIGH", "URGENT"] as TaskPriority[]).map((priority) => (
+                <DropdownMenuItem
+                  key={priority}
+                  onClick={() => performBulkAction("set_priority", priority)}
+                >
+                  {priority}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Move to Sprint */}
+          <Select onValueChange={(sprintId) => performBulkAction("set_sprint", sprintId)} disabled={isAssigning}>
+            <SelectTrigger className="w-48 bg-background">
               <Target className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Move to sprint..." />
             </SelectTrigger>
@@ -417,22 +570,43 @@ export function BacklogList({ tasks: initialTasks, sprints, projectId, projectKe
       )}
 
       {/* Task List */}
-      {tasks.length === 0 ? (
+      {filteredTasks.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-16 text-center">
             <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
               <Layers className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No tasks in backlog</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Tasks not assigned to a sprint will appear here. Create a new task to get started.
-            </p>
-            <Button asChild>
-              <Link href={`/project/${projectKey || projectId}/task/new`}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Task
-              </Link>
-            </Button>
+            {searchClauses.length > 0 ? (
+              <>
+                <h3 className="text-lg font-semibold mb-2">No matching tasks</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  No tasks match your search criteria. Try adjusting your search query.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchClauses([]);
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Search
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold mb-2">No tasks in backlog</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Tasks not assigned to a sprint will appear here. Create a new task to get started.
+                </p>
+                <Button asChild>
+                  <Link href={`/project/${projectKey || projectId}/task/new`}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Task
+                  </Link>
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -768,7 +942,7 @@ function CompactTaskTable({
           <tr className="bg-muted/50 border-b">
             <th className="w-12 p-3">
               <Checkbox
-                checked={selectedTasks.size === tasks.length && tasks.length > 0}
+                checked={selectedTasks.size > 0 && selectedTasks.size === tasks.length}
                 onCheckedChange={onSelectAll}
               />
             </th>

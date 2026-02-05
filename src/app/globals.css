@@ -69,65 +69,65 @@
   }
 
   .dark {
-    /* Deep purple-black background (Discord-inspired) */
-    --background: 235 20% 13%;
-    --foreground: 210 40% 98%;
+    /* Warm Mocha - Catppuccin-inspired cozy theme */
+    --background: 240 21% 12%;
+    --foreground: 226 64% 88%;
 
-    /* Elevated surface for cards - subtle purple tint */
-    --card: 232 25% 16%;
-    --card-foreground: 210 40% 98%;
+    /* Elevated surface - soft mocha */
+    --card: 240 21% 15%;
+    --card-foreground: 226 64% 88%;
 
     /* Popover */
-    --popover: 232 25% 16%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 21% 15%;
+    --popover-foreground: 226 64% 88%;
 
-    /* Violet primary for dark mode */
-    --primary: 262 83% 58%;
-    --primary-foreground: 0 0% 100%;
+    /* Mauve primary */
+    --primary: 267 84% 81%;
+    --primary-foreground: 240 21% 12%;
 
-    /* Secondary - purple-tinted */
-    --secondary: 262 30% 20%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary - surface layer */
+    --secondary: 240 21% 20%;
+    --secondary-foreground: 226 64% 88%;
 
-    /* Muted - purple-tinted */
-    --muted: 262 20% 18%;
-    --muted-foreground: 215 20% 65%;
+    /* Muted */
+    --muted: 240 21% 18%;
+    --muted-foreground: 227 35% 60%;
 
-    /* Accent - violet */
-    --accent: 262 50% 20%;
-    --accent-foreground: 262 83% 75%;
+    /* Accent - pink */
+    --accent: 316 72% 30%;
+    --accent-foreground: 316 72% 86%;
 
-    /* Destructive */
-    --destructive: 0 72% 51%;
+    /* Destructive - maroon */
+    --destructive: 343 81% 65%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Subtle borders - purple-tinted */
-    --border: 262 30% 22%;
-    --input: 262 30% 22%;
-    --ring: 262 83% 58%;
+    /* Subtle borders */
+    --border: 240 21% 22%;
+    --input: 240 21% 22%;
+    --ring: 267 84% 81%;
 
-    /* Semantic colors - adjusted for dark */
-    --success: 142 76% 42%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 0%;
-    --info: 199 89% 55%;
-    --info-foreground: 0 0% 100%;
+    /* Semantic colors - pastel palette */
+    --success: 115 54% 76%;
+    --success-foreground: 240 21% 12%;
+    --warning: 41 86% 77%;
+    --warning-foreground: 240 21% 12%;
+    --info: 189 71% 73%;
+    --info-foreground: 240 21% 12%;
 
-    /* Gradient accent - violet to purple */
-    --gradient-start: 262 83% 58%;
-    --gradient-end: 280 87% 65%;
+    /* Gradient accent - mauve to pink */
+    --gradient-start: 267 84% 81%;
+    --gradient-end: 316 72% 76%;
 
-    /* Glass utilities - purple-tinted */
-    --glass: 232 25% 16% / 0.8;
-    --glass-border: 262 30% 30% / 0.5;
+    /* Glass utilities */
+    --glass: 240 21% 15% / 0.8;
+    --glass-border: 240 21% 30% / 0.5;
 
-    /* Chart colors - violet-based palette */
-    --chart-1: 262 83% 58%;
-    --chart-2: 142 76% 50%;
-    --chart-3: 199 89% 60%;
-    --chart-4: 280 87% 65%;
-    --chart-5: 38 92% 55%;
+    /* Chart colors - pastel rainbow */
+    --chart-1: 267 84% 81%;
+    --chart-2: 115 54% 76%;
+    --chart-3: 189 71% 73%;
+    --chart-4: 316 72% 76%;
+    --chart-5: 41 86% 77%;
   }
 }
 
@@ -143,11 +143,11 @@
 @layer utilities {
   /* Glassmorphism utilities */
   .glass {
-    @apply bg-white/70 dark:bg-[hsl(232,25%,16%)]/80 backdrop-blur-xl border border-white/20 dark:border-[hsl(262,30%,30%)]/50;
+    @apply bg-white/70 dark:bg-[hsl(223,39%,14%)]/80 backdrop-blur-xl border border-white/20 dark:border-[hsl(223,25%,30%)]/50;
   }
 
   .glass-subtle {
-    @apply bg-white/50 dark:bg-[hsl(232,25%,16%)]/50 backdrop-blur-sm border border-white/10 dark:border-[hsl(262,30%,30%)]/30;
+    @apply bg-white/50 dark:bg-[hsl(223,39%,14%)]/50 backdrop-blur-sm border border-white/10 dark:border-[hsl(223,25%,30%)]/30;
   }
 
   /* Gradient text */

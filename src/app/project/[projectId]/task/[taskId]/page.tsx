@@ -6,7 +6,7 @@ import { TaskDetail } from "@/components/tasks/TaskDetail";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { isProjectKey, isTaskKey } from "@/lib/task-lookup";
-import { MergeConflictInfo } from "@/types";
+import { MergeConflictInfo, WorkflowDefinition } from "@/types";
 
 interface TaskPageProps {
   params: Promise<{ projectId: string; taskId: string }>;
@@ -98,10 +98,14 @@ export default async function TaskPage({ params }: TaskPageProps) {
     notFound();
   }
 
-  // Cast conflictInfo from Prisma JsonValue to proper type
+  // Cast JSON fields from Prisma JsonValue to proper types
   const taskWithTypedConflictInfo = {
     ...task,
     conflictInfo: task.conflictInfo as MergeConflictInfo | null,
+    project: {
+      ...task.project,
+      workflow: task.project.workflow as WorkflowDefinition | null,
+    },
   };
 
   const projects = await prisma.project.findMany({

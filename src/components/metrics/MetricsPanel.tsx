@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { TasksByStatusChart } from "./TasksByStatusChart";
 import { SprintProgressBar } from "./SprintProgressBar";
+import { CumulativeFlowChart } from "./CumulativeFlowChart";
+import { CreatedVsResolvedChart } from "./CreatedVsResolvedChart";
 import { TaskStatus, TaskPriority, SprintStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +42,8 @@ interface Task {
   storyPoints: number | null;
   dueDate: Date | null;
   assigneeId: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 interface Sprint {
@@ -506,6 +510,12 @@ export function MetricsPanel({ tasks, sprints, members }: MetricsPanelProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Cumulative Flow & Created vs Resolved Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CumulativeFlowChart tasks={tasks} days={30} />
+        <CreatedVsResolvedChart tasks={tasks} days={30} />
+      </div>
 
       {/* Status Pipeline */}
       <Card>

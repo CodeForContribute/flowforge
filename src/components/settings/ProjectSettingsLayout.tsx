@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Users, Tag, AlertTriangle, Sparkles } from "lucide-react";
+import { Settings, Users, Tag, AlertTriangle, Sparkles, LayoutGrid, Workflow, Zap, Package, Settings2, Webhook, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProjectSettingsLayoutProps {
@@ -28,6 +28,21 @@ export function ProjectSettingsLayout({
       icon: Settings,
     },
     {
+      title: "Board",
+      href: `/project/${projectSlug}/settings/board`,
+      icon: LayoutGrid,
+    },
+    {
+      title: "Workflow",
+      href: `/project/${projectSlug}/settings/workflow`,
+      icon: Workflow,
+    },
+    {
+      title: "Automation",
+      href: `/project/${projectSlug}/settings/automation`,
+      icon: Zap,
+    },
+    {
       title: "AI Integrations",
       href: `/project/${projectSlug}/settings/ai`,
       icon: Sparkles,
@@ -41,6 +56,26 @@ export function ProjectSettingsLayout({
       title: "Labels",
       href: `/project/${projectSlug}/settings/labels`,
       icon: Tag,
+    },
+    {
+      title: "Custom Fields",
+      href: `/project/${projectSlug}/settings/custom-fields`,
+      icon: Settings2,
+    },
+    {
+      title: "Versions",
+      href: `/project/${projectSlug}/settings/versions`,
+      icon: Package,
+    },
+    {
+      title: "Webhooks",
+      href: `/project/${projectSlug}/settings/webhooks`,
+      icon: Webhook,
+    },
+    {
+      title: "Slack",
+      href: `/project/${projectSlug}/settings/slack`,
+      icon: MessageSquare,
     },
     {
       title: "Danger Zone",

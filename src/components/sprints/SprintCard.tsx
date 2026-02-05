@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   MoreVertical,
+  FileText,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -159,6 +160,12 @@ export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }
                     Complete Sprint
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem asChild>
+                  <Link href={`/project/${projectKey || sprint.projectId}/sprint/${sprint.id}/report`}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Report
+                  </Link>
+                </DropdownMenuItem>
                 {onDelete && (
                   <DropdownMenuItem onClick={onDelete} className="text-destructive">
                     Delete Sprint

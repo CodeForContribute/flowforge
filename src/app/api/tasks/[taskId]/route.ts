@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { notifyWatchersTaskUpdated } from "@/services/notifications";
 import { isTaskKey } from "@/lib/task-lookup";
+import { WorkflowDefinition, TaskStatus, DEFAULT_WORKFLOW, getAllowedTransitions } from "@/types";
+import { executeAutomations, buildTaskContext } from "@/services/automation";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -15,14 +18,17 @@ const updateTaskSchema = z.object({
       "TODO",
       "IN_PROGRESS",
       "GENERATING",
+      "AWAITING_CODE_REVIEW",
       "PR_OPEN",
       "IN_REVIEW",
       "CHANGES_REQUESTED",
       "APPROVED",
+      "HAS_CONFLICTS",
       "MERGED",
       "CLOSED",
     ])
     .optional(),
+  skipWorkflowValidation: z.boolean().optional(), // Allow bypassing workflow for system operations
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   taskType: z.enum(["EPIC", "STORY", "TASK", "SUBTASK", "BUG"]).optional(),
   storyPoints: z.number().int().min(0).max(100).nullable().optional(),
@@ -33,6 +39,13 @@ const updateTaskSchema = z.object({
   baseBranch: z.string().nullable().optional(),
   labelIds: z.array(z.string()).optional(),
   generatedPrompt: z.string().optional(),
+  // Time tracking
+  originalEstimate: z.number().int().min(0).nullable().optional(),
+  timeRemaining: z.number().int().min(0).nullable().optional(),
+  // Version
+  versionId: z.string().nullable().optional(),
+  // Custom fields
+  customFieldValues: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 interface RouteParams {
@@ -96,6 +109,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         executions: {
           orderBy: { createdAt: "desc" },
         },
+        version: {
+          select: { id: true, name: true, status: true, releaseDate: true },
+        },
+        timeLogs: {
+          include: {
+            user: { select: { id: true, name: true, image: true } },
+          },
+          orderBy: { date: "desc" },
+          take: 5, // Only fetch last 5 for the detail view
+        },
+        _count: {
+          select: { timeLogs: true },
+        },
       },
     });
 
@@ -125,6 +151,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.sprintId === "") body.sprintId = null;
     if (body.assigneeId === "") body.assigneeId = null;
     if (body.parentTaskId === "") body.parentTaskId = null;
+    if (body.versionId === "") body.versionId = null;
 
     const data = updateTaskSchema.parse(body);
 
@@ -144,11 +171,29 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           ],
         },
       },
-      include: { project: true },
+      include: { project: { select: { id: true, name: true, workflow: true } } },
     });
 
     if (!existingTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Validate workflow transitions if status is being changed
+    if (data.status && data.status !== existingTask.status && !data.skipWorkflowValidation) {
+      const workflow = existingTask.project.workflow
+        ? (existingTask.project.workflow as unknown as WorkflowDefinition)
+        : DEFAULT_WORKFLOW;
+
+      const allowedTransitions = getAllowedTransitions(workflow, existingTask.status as TaskStatus);
+
+      if (!allowedTransitions.includes(data.status as TaskStatus)) {
+        return NextResponse.json(
+          {
+            error: `Invalid status transition from ${existingTask.status} to ${data.status}. Allowed: ${allowedTransitions.join(", ") || "none"}`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate parent task if being updated
@@ -201,8 +246,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Handle label updates separately
-    const { labelIds, ...updateData } = data;
+    // Handle label updates separately and remove skipWorkflowValidation (used earlier for validation)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { labelIds, skipWorkflowValidation: _skipWorkflow, customFieldValues, ...updateData } = data;
 
     const task = await prisma.task.update({
       where: { id: existingTask.id },
@@ -213,6 +259,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           labels: {
             set: labelIds.map((id) => ({ id })),
           },
+        }),
+        ...(customFieldValues !== undefined && {
+          customFieldValues: customFieldValues === null ? Prisma.JsonNull : JSON.parse(JSON.stringify(customFieldValues)) as Prisma.InputJsonValue,
         }),
       },
       include: {
@@ -243,6 +292,28 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         `changed status from ${existingTask.status} to ${data.status}`,
         session.user.id
       );
+    }
+
+    // Execute automations (async, non-blocking)
+    const taskContext = buildTaskContext({
+      ...task,
+      labels: task.labels,
+    });
+
+    // Determine trigger based on what changed
+    if (data.status && data.status !== existingTask.status) {
+      executeAutomations(taskContext, {
+        trigger: "on_status_change",
+        previousStatus: existingTask.status as TaskStatus,
+        newStatus: data.status as TaskStatus,
+      }).catch((err) => console.error("Automation execution failed:", err));
+    }
+
+    if (data.assigneeId !== undefined && data.assigneeId !== existingTask.assigneeId) {
+      executeAutomations(taskContext, {
+        trigger: "on_assign",
+        assigneeId: data.assigneeId || undefined,
+      }).catch((err) => console.error("Automation execution failed:", err));
     }
 
     return NextResponse.json({ task });

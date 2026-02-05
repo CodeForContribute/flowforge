@@ -145,18 +145,20 @@ async function handlePullRequestReview(body: Record<string, unknown>): Promise<v
     console.log(`Queued approval handling for task ${task.id}`);
   } else if (reviewState === "changes_requested") {
     // Send notification for changes requested
-    await notifyReviewRequested(
-      task.project.userId,
-      {
-        taskId: task.id,
-        taskTitle: task.title,
-        projectName: task.project.name,
-        prNumber,
-        prUrl: task.prUrl || undefined,
-        branchName: task.branchName || undefined,
-      },
-      reviewerName
-    );
+    if (task.project.userId) {
+      await notifyReviewRequested(
+        task.project.userId,
+        {
+          taskId: task.id,
+          taskTitle: task.title,
+          projectName: task.project.name,
+          prNumber,
+          prUrl: task.prUrl || undefined,
+          branchName: task.branchName || undefined,
+        },
+        reviewerName
+      );
+    }
 
     // Queue review response
     await addReviewHandlingJob({
@@ -259,16 +261,17 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
     }
 
     // Send notification for PR created
-    await notifyPRCreated(task.project.userId, {
-      taskId: task.id,
-      taskTitle: task.title,
-      projectName: task.project.name,
-      prNumber,
-      prUrl,
-      branchName: headRef,
-    });
-
-    console.log(`PR opened notification sent for task ${task.id}`);
+    if (task.project.userId) {
+      await notifyPRCreated(task.project.userId, {
+        taskId: task.id,
+        taskTitle: task.title,
+        projectName: task.project.name,
+        prNumber,
+        prUrl,
+        branchName: headRef,
+      });
+      console.log(`PR opened notification sent for task ${task.id}`);
+    }
   }
 
   if (action === "closed") {
@@ -281,10 +284,11 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
 
       // Fetch PR summary from GitHub and create comprehensive comment
       const repoInfo = parseGitHubRepo(task.project.githubRepo);
-      if (repoInfo) {
+      const accessToken = task.project.user?.accessToken;
+      if (repoInfo && accessToken) {
         try {
           const prSummary = await getPRSummary(
-            task.project.user.accessToken,
+            accessToken,
             repoInfo.owner,
             repoInfo.repo,
             prNumber
@@ -325,14 +329,16 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
       }
 
       // Send notification for PR merged
-      await notifyPRMerged(task.project.userId, {
-        taskId: task.id,
-        taskTitle: task.title,
-        projectName: task.project.name,
-        prNumber,
-        prUrl: prUrl || task.prUrl || undefined,
-        branchName: task.branchName || task.project.defaultBranch,
-      });
+      if (task.project.userId) {
+        await notifyPRMerged(task.project.userId, {
+          taskId: task.id,
+          taskTitle: task.title,
+          projectName: task.project.name,
+          prNumber,
+          prUrl: prUrl || task.prUrl || undefined,
+          branchName: task.branchName || task.project.defaultBranch,
+        });
+      }
 
       console.log(`Task ${task.id} marked as MERGED with comprehensive summary`);
     } else {

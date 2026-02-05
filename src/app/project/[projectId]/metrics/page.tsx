@@ -41,7 +41,7 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
     notFound();
   }
 
-  // Fetch all tasks for metrics
+  // Fetch all tasks for metrics (including dates for CFD and Created/Resolved charts)
   const tasks = await prisma.task.findMany({
     where: { projectId: project.id },
     select: {
@@ -51,6 +51,8 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
       storyPoints: true,
       dueDate: true,
       assigneeId: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 
@@ -79,11 +81,13 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
     },
   });
 
-  // Include project owner as a member
-  const owner = await prisma.user.findUnique({
-    where: { id: project.userId },
-    select: { id: true, name: true },
-  });
+  // Include project owner as a member (if personal project)
+  const owner = project.userId
+    ? await prisma.user.findUnique({
+        where: { id: project.userId },
+        select: { id: true, name: true },
+      })
+    : null;
 
   const allMembers = owner
     ? [

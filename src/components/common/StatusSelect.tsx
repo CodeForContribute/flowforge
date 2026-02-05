@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { TaskStatus } from "@/types";
+import { useState, useEffect, useMemo } from "react";
+import { TaskStatus, WorkflowDefinition, DEFAULT_WORKFLOW, getAllowedTransitions } from "@/types";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -10,7 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Loader2, AlertCircle } from "lucide-react";
 import { useTaskStatusChange } from "@/contexts/TaskEventContext";
 
 const statusConfig: Record<
@@ -116,6 +121,8 @@ interface StatusSelectProps {
   onStatusChange?: (newStatus: TaskStatus) => void;
   size?: "sm" | "default";
   disabled?: boolean;
+  workflow?: WorkflowDefinition | null;
+  showWorkflowHints?: boolean;
 }
 
 export function StatusSelect({
@@ -124,9 +131,12 @@ export function StatusSelect({
   onStatusChange,
   size = "default",
   disabled = false,
+  workflow = null,
+  showWorkflowHints = true,
 }: StatusSelectProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [status, setStatus] = useState<TaskStatus>(currentStatus);
+  const [error, setError] = useState<string | null>(null);
   const { emitStatusChange } = useTaskStatusChange();
 
   // Sync internal state when prop changes (e.g., from parent component receiving events)
@@ -134,10 +144,26 @@ export function StatusSelect({
     setStatus(currentStatus);
   }, [currentStatus]);
 
+  // Calculate allowed statuses based on workflow
+  const allowedStatuses = useMemo(() => {
+    const activeWorkflow = workflow || DEFAULT_WORKFLOW;
+    const allowed = getAllowedTransitions(activeWorkflow, status);
+    // Always include current status
+    if (!allowed.includes(status)) {
+      allowed.unshift(status);
+    }
+    // Filter to only manual statuses
+    return allowed.filter((s) => MANUAL_STATUSES.includes(s));
+  }, [status, workflow]);
+
+  // Check if workflow restricts options
+  const hasWorkflowRestrictions = workflow && allowedStatuses.length < MANUAL_STATUSES.length;
+
   async function handleStatusChange(newStatus: TaskStatus) {
     if (newStatus === status) return;
 
     setIsUpdating(true);
+    setError(null);
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
@@ -151,11 +177,16 @@ export function StatusSelect({
         emitStatusChange(taskId, newStatus);
         onStatusChange?.(newStatus);
       } else {
-        const error = await response.json();
-        console.error("Failed to update status:", error);
+        const errorData = await response.json();
+        console.error("Failed to update status:", errorData);
+        setError(errorData.error || "Failed to update status");
+        // Clear error after 3 seconds
+        setTimeout(() => setError(null), 3000);
       }
-    } catch (error) {
-      console.error("Error updating status:", error);
+    } catch (err) {
+      console.error("Error updating status:", err);
+      setError("Failed to update status");
+      setTimeout(() => setError(null), 3000);
     } finally {
       setIsUpdating(false);
     }
@@ -163,7 +194,7 @@ export function StatusSelect({
 
   const config = statusConfig[status];
 
-  return (
+  const selectContent = (
     <Select
       value={status}
       onValueChange={(value) => handleStatusChange(value as TaskStatus)}
@@ -175,7 +206,8 @@ export function StatusSelect({
           config.bgColor,
           config.textColor,
           size === "sm" ? "text-[10px] px-2 py-0.5 rounded-full" : "text-xs px-2.5 py-1 rounded-full",
-          isUpdating && "opacity-70"
+          isUpdating && "opacity-70",
+          error && "ring-2 ring-red-500"
         )}
       >
         {isUpdating ? (
@@ -192,8 +224,9 @@ export function StatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {MANUAL_STATUSES.map((statusOption) => {
+        {allowedStatuses.map((statusOption) => {
           const optionConfig = statusConfig[statusOption];
+          const isCurrent = statusOption === status;
           return (
             <SelectItem
               key={statusOption}
@@ -208,11 +241,36 @@ export function StatusSelect({
                   )}
                 />
                 <span>{optionConfig.label}</span>
+                {isCurrent && (
+                  <span className="text-muted-foreground text-xs">(current)</span>
+                )}
               </div>
             </SelectItem>
           );
         })}
+        {hasWorkflowRestrictions && showWorkflowHints && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground border-t mt-1">
+            <span className="flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Limited by workflow
+            </span>
+          </div>
+        )}
       </SelectContent>
     </Select>
   );
+
+  // Show error tooltip if there's an error
+  if (error) {
+    return (
+      <Tooltip open>
+        <TooltipTrigger asChild>{selectContent}</TooltipTrigger>
+        <TooltipContent side="bottom" className="bg-destructive text-destructive-foreground">
+          {error}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return selectContent;
 }

@@ -108,8 +108,12 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository");
@@ -215,14 +219,16 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
       });
 
       // Notify user that code is ready for review
-      await notifyCodeReviewReady(project.userId, {
-        taskId,
-        taskTitle: task.title,
-        taskKey: task.taskKey,
-        projectName: project.name,
-        fileCount: generatedFiles.length,
-        version: newVersion,
-      });
+      if (project.userId) {
+        await notifyCodeReviewReady(project.userId, {
+          taskId,
+          taskTitle: task.title,
+          taskKey: task.taskKey,
+          projectName: project.name,
+          fileCount: generatedFiles.length,
+          version: newVersion,
+        });
+      }
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       throw error;
@@ -238,17 +244,19 @@ export async function executeTask(options: ExecuteTaskOptions): Promise<void> {
     });
 
     // Notify user about task failure
-    await notifyTaskFailed(
-      project.userId,
-      {
-        taskId,
-        taskTitle: task.title,
-        taskKey: task.taskKey,
-        projectName: project.name,
-        branchName,
-      },
-      error instanceof Error ? error.message : "Unknown error"
-    );
+    if (project.userId) {
+      await notifyTaskFailed(
+        project.userId,
+        {
+          taskId,
+          taskTitle: task.title,
+          taskKey: task.taskKey,
+          projectName: project.name,
+          branchName,
+        },
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
 
     throw error;
   }
@@ -306,8 +314,12 @@ export async function continueExecution(options: ContinueExecutionOptions): Prom
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository");
@@ -444,8 +456,10 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
         branchName,
       };
 
-      await notifyPRCreated(project.userId, notificationContext);
-      await notifyTaskCompleted(project.userId, notificationContext);
+      if (project.userId) {
+        await notifyPRCreated(project.userId, notificationContext);
+        await notifyTaskCompleted(project.userId, notificationContext);
+      }
     } catch (error) {
       await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
       throw error;
@@ -507,17 +521,19 @@ ${task.taskKey ? `\n**Task:** ${task.taskKey}` : ""}
     });
 
     // Notify user about task failure
-    await notifyTaskFailed(
-      project.userId,
-      {
-        taskId,
-        taskTitle: task.title,
-        taskKey: task.taskKey,
-        projectName: project.name,
-        branchName,
-      },
-      error instanceof Error ? error.message : "Unknown error"
-    );
+    if (project.userId) {
+      await notifyTaskFailed(
+        project.userId,
+        {
+          taskId,
+          taskTitle: task.title,
+          taskKey: task.taskKey,
+          projectName: project.name,
+          branchName,
+        },
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
 
     throw error;
   }
@@ -634,14 +650,16 @@ Please generate improved code that addresses all the points mentioned in the fee
     });
 
     // Notify user that new code is ready for review
-    await notifyCodeReviewReady(project.userId, {
-      taskId,
-      taskTitle: task.title,
-      taskKey: task.taskKey,
-      projectName: project.name,
-      fileCount: generatedFiles.length,
-      version: newVersion,
-    });
+    if (project.userId) {
+      await notifyCodeReviewReady(project.userId, {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        fileCount: generatedFiles.length,
+        version: newVersion,
+      });
+    }
   } catch (error) {
     console.error("Error regenerating code:", error);
     // Ensure task is not left in GENERATING state
@@ -650,16 +668,18 @@ Please generate improved code that addresses all the points mentioned in the fee
       data: { status: "AWAITING_CODE_REVIEW" },
     });
 
-    await notifyTaskFailed(
-      project.userId,
-      {
-        taskId,
-        taskTitle: task.title,
-        taskKey: task.taskKey,
-        projectName: project.name,
-      },
-      error instanceof Error ? error.message : "Unknown error"
-    );
+    if (project.userId) {
+      await notifyTaskFailed(
+        project.userId,
+        {
+          taskId,
+          taskTitle: task.title,
+          taskKey: task.taskKey,
+          projectName: project.name,
+        },
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
 
     throw error;
   }
@@ -698,10 +718,10 @@ export async function rejectCodeReview(
 
   // Delete branch if requested and exists
   if (deleteBranchFlag && task.branchName) {
-    const accessToken = project.user.accessToken;
+    const accessToken = project.user?.accessToken;
     const repoInfo = parseGitHubRepo(project.githubRepo);
 
-    if (repoInfo) {
+    if (accessToken && repoInfo) {
       const { owner, repo } = repoInfo;
       try {
         await deleteBranch(accessToken, owner, repo, task.branchName);
@@ -749,8 +769,12 @@ export async function handleReviewComments(
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo || !task.branchName) {
     throw new Error("Invalid task state");
@@ -765,18 +789,20 @@ export async function handleReviewComments(
   });
 
   // Notify user about changes requested
-  await notifyReviewRequested(
-    project.userId,
-    {
-      taskId,
-      taskTitle: task.title,
-      taskKey: task.taskKey,
-      projectName: project.name,
-      prNumber,
-      prUrl: task.prUrl || undefined,
-      branchName: task.branchName || undefined,
-    }
-  );
+  if (project.userId) {
+    await notifyReviewRequested(
+      project.userId,
+      {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        prNumber,
+        prUrl: task.prUrl || undefined,
+        branchName: task.branchName || undefined,
+      }
+    );
+  }
 
   // Get review comments
   const comments = await getPullRequestComments(accessToken, owner, repo, prNumber);
@@ -896,8 +922,12 @@ export async function handlePRApproval(options: HandlePRApprovalOptions): Promis
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository");
@@ -929,15 +959,17 @@ export async function handlePRApproval(options: HandlePRApprovalOptions): Promis
     // No comment here - comprehensive summary is posted via webhook when PR merges
 
     // Notify user about PR merge
-    await notifyPRMerged(project.userId, {
-      taskId,
-      taskTitle: task.title,
-      taskKey: task.taskKey,
-      projectName: project.name,
-      prNumber,
-      prUrl: task.prUrl || undefined,
-      branchName: task.branchName || project.defaultBranch,
-    });
+    if (project.userId) {
+      await notifyPRMerged(project.userId, {
+        taskId,
+        taskTitle: task.title,
+        taskKey: task.taskKey,
+        projectName: project.name,
+        prNumber,
+        prUrl: task.prUrl || undefined,
+        branchName: task.branchName || project.defaultBranch,
+      });
+    }
   } catch (error) {
     await failExecution(executionId, error instanceof Error ? error.message : "Unknown error");
     throw error;
@@ -971,8 +1003,12 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo || !task.branchName) {
     throw new Error("Invalid task state");
@@ -1099,14 +1135,16 @@ export async function handlePRComment(options: HandlePRCommentOptions): Promise<
       });
 
       // Notify user that code is ready for review
-      await notifyCodeReviewReady(project.userId, {
-        taskId,
-        taskTitle: task.title,
-        taskKey: task.taskKey,
-        projectName: project.name,
-        fileCount: result.files.length,
-        version: newVersion,
-      });
+      if (project.userId) {
+        await notifyCodeReviewReady(project.userId, {
+          taskId,
+          taskTitle: task.title,
+          taskKey: task.taskKey,
+          projectName: project.name,
+          fileCount: result.files.length,
+          version: newVersion,
+        });
+      }
 
       // Execution pauses here - continueCommentResponse will be called after approval
     } catch (error) {
@@ -1203,8 +1241,12 @@ export async function continueCommentResponse(options: ContinueCommentResponseOp
   }
 
   const { project } = task;
-  const accessToken = project.user.accessToken;
+  const accessToken = project.user?.accessToken;
   const repoInfo = parseGitHubRepo(project.githubRepo);
+
+  if (!accessToken) {
+    throw new Error("No access token available for this project");
+  }
 
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository");

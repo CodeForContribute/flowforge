@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -147,6 +147,12 @@ export default async function SprintDetailPage({ params }: SprintDetailPageProps
                   </p>
                 </div>
               </div>
+              <Button variant="outline" asChild>
+                <Link href={`/project/${project.projectKey}/sprint/${sprint.id}/report`}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Report
+                </Link>
+              </Button>
             </div>
           </header>
           <main className="flex-1 overflow-auto p-6">

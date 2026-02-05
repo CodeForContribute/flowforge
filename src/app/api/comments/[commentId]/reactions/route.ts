@@ -46,14 +46,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check if user has access to this project
-    const hasAccess =
-      comment.task.project.userId === session.user.id ||
-      (await prisma.projectMember.findFirst({
-        where: {
-          projectId: comment.task.projectId,
-          userId: session.user.id,
-        },
-      }));
+    // Personal project: user is owner or project member
+    // Org project: user is org member or project member
+    const isProjectOwner = comment.task.project.userId === session.user.id;
+    const isProjectMember = await prisma.projectMember.findFirst({
+      where: {
+        projectId: comment.task.projectId,
+        userId: session.user.id,
+      },
+    });
+    // TODO: For org projects, also check org membership
+    const hasAccess = isProjectOwner || isProjectMember;
 
     if (!hasAccess) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });

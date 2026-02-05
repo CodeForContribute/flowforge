@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { generateNextTaskKey } from "@/lib/task-lookup";
+import { executeAutomations, buildTaskContext } from "@/services/automation";
 
 const createTaskSchema = z.object({
   projectId: z.string(),
@@ -236,6 +237,15 @@ export async function POST(request: NextRequest) {
         labels: true,
       },
     });
+
+    // Execute automations for on_create trigger (async, non-blocking)
+    executeAutomations(
+      buildTaskContext({
+        ...task,
+        labels: task.labels,
+      }),
+      { trigger: "on_create" }
+    ).catch((err) => console.error("Automation execution failed:", err));
 
     return NextResponse.json({ task }, { status: 201 });
   } catch (error) {

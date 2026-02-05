@@ -452,10 +452,11 @@ export async function parseMentions(
     }
   }
 
-  // Add project owner if mentioned
-  if (project?.user.name && usernames.some((u) => u.toLowerCase() === project.user.name?.toLowerCase())) {
-    if (!result.some((r) => r.userId === project.user.id)) {
-      result.push({ userId: project.user.id, username: project.user.name });
+  // Add project owner if mentioned (for personal projects)
+  const projectUser = project?.user;
+  if (projectUser?.name && usernames.some((u) => u.toLowerCase() === projectUser.name?.toLowerCase())) {
+    if (!result.some((r) => r.userId === projectUser.id)) {
+      result.push({ userId: projectUser.id, username: projectUser.name });
     }
   }
 

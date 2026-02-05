@@ -3,12 +3,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { Plus, Settings, Github, List, Target, BarChart3 } from "lucide-react";
+import { Plus, Settings, Github, List, Target, BarChart3, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { isProjectKey } from "@/lib/task-lookup";
+import { BoardColumn } from "@/types";
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -40,6 +41,9 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         include: {
           assignee: {
             select: { id: true, name: true, image: true },
+          },
+          parentTask: {
+            select: { id: true, title: true, taskKey: true, taskType: true },
           },
           labels: true,
           subtasks: {
@@ -126,6 +130,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     Metrics
                   </Link>
                 </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/project/${project.projectKey}/activity`}>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Activity
+                  </Link>
+                </Button>
                 <Button asChild data-tour-id="new-task-button">
                   <Link href={`/project/${project.projectKey}/task/new`}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -149,9 +159,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 projectId: project.id,
               }))}
               wipLimits={(project.wipLimits as Record<string, number>) || {}}
+              boardColumns={(project.boardColumns as unknown as BoardColumn[]) || null}
               members={[
-                // Include project owner
-                { id: project.user.id, name: project.user.name, image: project.user.image },
+                // Include project owner (if personal project)
+                ...(project.user ? [{ id: project.user.id, name: project.user.name, image: project.user.image }] : []),
                 // Include all project members
                 ...project.members.map((m: typeof project.members[number]) => ({
                   id: m.user.id,

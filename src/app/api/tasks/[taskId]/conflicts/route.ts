@@ -47,7 +47,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const [owner, repo] = task.project.githubRepo.split("/");
-    const accessToken = task.project.user.accessToken;
+    const accessToken = task.project.user?.accessToken;
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "No access token available for this project" }, { status: 400 });
+    }
 
     // Check merge status
     const mergeStatus = await checkPRMergeStatus(
@@ -122,7 +126,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { taskId } = await context.params;
     const body = await request.json();
-    const { action } = body; // "update_branch" | "ai_resolve"
+    const { action } = body; // "update_branch" | "ai_resolve" | "manual_resolve"
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -144,7 +148,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const [owner, repo] = task.project.githubRepo.split("/");
-    const accessToken = task.project.user.accessToken;
+    const accessToken = task.project.user?.accessToken;
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "No access token available for this project" }, { status: 400 });
+    }
 
     if (action === "update_branch") {
       // Try to update branch by merging base into it
@@ -284,6 +292,86 @@ export async function POST(request: NextRequest, context: RouteContext) {
           success: false,
           message: "Some conflicts remain - may need manual resolution",
           partiallyResolved: resolution.resolvedFiles.map((f) => f.path),
+        });
+      }
+    } else if (action === "manual_resolve") {
+      // Manual resolution: user provides resolved file contents
+      const { resolvedFiles } = body as {
+        resolvedFiles: Array<{ path: string; content: string }>;
+      };
+
+      if (!resolvedFiles || !Array.isArray(resolvedFiles) || resolvedFiles.length === 0) {
+        return NextResponse.json(
+          { error: "resolvedFiles array is required" },
+          { status: 400 }
+        );
+      }
+
+      // Validate each resolved file has path and content
+      for (const file of resolvedFiles) {
+        if (!file.path || typeof file.content !== "string") {
+          return NextResponse.json(
+            { error: "Each resolved file must have path and content" },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Commit resolved files to branch sequentially
+      for (const file of resolvedFiles) {
+        await createOrUpdateFile(
+          accessToken,
+          owner,
+          repo,
+          file.path,
+          file.content,
+          `Manually resolve merge conflict in ${file.path}`,
+          task.branchName
+        );
+      }
+
+      // Re-check merge status
+      const mergeStatus = await checkPRMergeStatus(
+        accessToken,
+        owner,
+        repo,
+        task.prNumber
+      );
+
+      if (!mergeStatus.hasConflicts) {
+        // Clear conflict status
+        await prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: "APPROVED",
+            conflictInfo: Prisma.JsonNull,
+          },
+        });
+
+        // Add activity comment
+        await prisma.comment.create({
+          data: {
+            content: `Manually resolved merge conflicts in ${resolvedFiles.length} file(s):\n${resolvedFiles.map((f) => `- ${f.path}`).join("\n")}`,
+            isSystem: true,
+            type: "ACTIVITY",
+            taskId,
+            metadata: {
+              activity_type: "conflicts_resolved_manually",
+              resolvedFiles: resolvedFiles.map((f) => f.path),
+            },
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Conflicts resolved successfully",
+          resolvedFiles: resolvedFiles.map((f) => f.path),
+        });
+      } else {
+        return NextResponse.json({
+          success: false,
+          message: "Some conflicts remain - please resolve all conflicting files",
+          partiallyResolved: resolvedFiles.map((f) => f.path),
         });
       }
     }

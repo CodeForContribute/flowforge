@@ -16,7 +16,9 @@ import {
   CheckCircle,
   XCircle,
   ArrowDown,
+  Edit,
 } from "lucide-react";
+import { ManualConflictDialog } from "./ManualConflictDialog";
 import { cn } from "@/lib/utils";
 import { MergeConflictInfo } from "@/types";
 
@@ -38,6 +40,7 @@ export function ConflictPanel({ taskId, conflictInfo }: ConflictPanelProps) {
   const [currentConflictInfo, setCurrentConflictInfo] = useState<MergeConflictInfo | null>(
     conflictInfo || null
   );
+  const [manualResolveOpen, setManualResolveOpen] = useState(false);
 
   async function checkForConflicts() {
     setIsChecking(true);
@@ -278,20 +281,31 @@ export function ConflictPanel({ taskId, conflictInfo }: ConflictPanelProps) {
           )}
 
           {hasConflicts && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={resolveWithAI}
-              disabled={isChecking || isUpdating || isResolving}
-              className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
-            >
-              {isResolving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              Resolve with AI
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setManualResolveOpen(true)}
+                disabled={isChecking || isUpdating || isResolving}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Manual Resolve
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={resolveWithAI}
+                disabled={isChecking || isUpdating || isResolving}
+                className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+              >
+                {isResolving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                Resolve with AI
+              </Button>
+            </>
           )}
         </div>
 
@@ -304,6 +318,18 @@ export function ConflictPanel({ taskId, conflictInfo }: ConflictPanelProps) {
             : "Your branch is up to date and ready to merge."}
         </p>
       </CardContent>
+
+      {/* Manual Conflict Resolution Dialog */}
+      <ManualConflictDialog
+        open={manualResolveOpen}
+        onOpenChange={setManualResolveOpen}
+        taskId={taskId}
+        onResolved={() => {
+          setCurrentConflictInfo(null);
+          setResult({ type: "success", message: "Conflicts resolved manually!" });
+          router.refresh();
+        }}
+      />
     </Card>
   );
 }
