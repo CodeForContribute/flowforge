@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Building2, Trash2 } from "lucide-react";
@@ -35,9 +35,9 @@ interface Organization {
 export default function OrganizationSettingsPage({
   params,
 }: {
-  params: Promise<{ orgSlug: string }>;
+  params: { orgSlug: string };
 }) {
-  const { orgSlug } = use(params);
+  const { orgSlug } = params;
   const router = useRouter();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);

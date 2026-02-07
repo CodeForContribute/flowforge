@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Plus, Settings, Users, FolderKanban, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,9 +36,9 @@ interface Project {
 export default function OrganizationDashboardPage({
   params,
 }: {
-  params: Promise<{ orgSlug: string }>;
+  params: { orgSlug: string };
 }) {
-  const { orgSlug } = use(params);
+  const { orgSlug } = params;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);

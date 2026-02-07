@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Building2, Plus, UserMinus, Shield } from "lucide-react";
@@ -62,9 +62,9 @@ interface Member {
 export default function OrganizationMembersPage({
   params,
 }: {
-  params: Promise<{ orgSlug: string }>;
+  params: { orgSlug: string };
 }) {
-  const { orgSlug } = use(params);
+  const { orgSlug } = params;
   const router = useRouter();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
