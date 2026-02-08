@@ -29,8 +29,8 @@ const mockConflicts: Conflict[] = [
 describe('handleMergeConflict', () => {
   it('should correctly identify and log merge conflicts', () => {
     const result = handleMergeConflict(mockConflicts);
-    expect(result).toContain('Conflict detected in src/file1.ts');
-    expect(result).toContain('Conflict detected in src/file2.ts');
+    expect(result).toContain('File: src/file1.ts');
+    expect(result).toContain('File: src/file2.ts');
   });
 
   it('should return a readable format for each conflict', () => {

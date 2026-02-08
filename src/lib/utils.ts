@@ -46,7 +46,7 @@ export function generateBranchName(taskTitle: string, taskId: string, taskKey?: 
 export function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } | null {
   // Handle formats: owner/repo, https://github.com/owner/repo, git@github.com:owner/repo.git
   const patterns = [
-    /^([^/]+)\/([^/]+)$/,
+    /^([^/@]+)\/([^/]+)$/,
     /github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/,
     /github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/,
   ];

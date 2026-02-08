@@ -353,8 +353,8 @@ describe('prompt-generator service', () => {
         currentFiles: [],
       });
 
-      expect(result).toContain('**src/index.ts** (line 42): Fix this bug');
-      expect(result).toContain('**src/utils.ts**: Add error handling');
+      expect(result).toContain('- **src/index.ts** (line 42): Fix this bug');
+      expect(result).toContain('- **src/utils.ts**: Add error handling');
     });
 
     it('should include current file contents', () => {

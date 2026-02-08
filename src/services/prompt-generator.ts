@@ -6,13 +6,13 @@ export function formatTreeStructure(tree: GitHubTreeItem[]): string {
   const relevantFiles = tree.filter((item) => {
     // Skip node_modules, build outputs, and other common exclusions
     const excludePatterns = [
-      /^node_modules\//,
-      /^\.git\//,
-      /^dist\//,
-      /^build\//,
-      /^\.next\//,
-      /^coverage\//,
-      /^\.cache\//,
+      /^node_modules(\/|$)/,
+      /^\.git(\/|$)/,
+      /^dist(\/|$)/,
+      /^build(\/|$)/,
+      /^\.next(\/|$)/,
+      /^coverage(\/|$)/,
+      /^\.cache(\/|$)/,
       /\.lock$/,
       /package-lock\.json$/,
       /yarn\.lock$/,

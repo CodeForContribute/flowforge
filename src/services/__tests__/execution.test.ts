@@ -24,6 +24,10 @@ jest.mock('@/lib/prisma', () => ({
     comment: {
       create: jest.fn(),
     },
+    generatedCode: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
   },
 }));
 
@@ -55,6 +59,7 @@ jest.mock('../notifications', () => ({
   notifyReviewRequested: jest.fn(),
   notifyTaskCompleted: jest.fn(),
   notifyTaskFailed: jest.fn(),
+  notifyCodeReviewReady: jest.fn(),
 }));
 
 describe('execution service', () => {
@@ -87,6 +92,8 @@ describe('execution service', () => {
     (prisma.execution.update as jest.Mock).mockResolvedValue({});
     (prisma.task.update as jest.Mock).mockResolvedValue({});
     (prisma.comment.create as jest.Mock).mockResolvedValue({});
+    (prisma.generatedCode.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.generatedCode.create as jest.Mock).mockResolvedValue({ id: 'gc-1', version: 1 });
   });
 
   describe('executeTask', () => {
@@ -137,7 +144,7 @@ describe('execution service', () => {
       ).rejects.toThrow('Invalid GitHub repository');
     });
 
-    it('should execute task successfully and create new branch', async () => {
+    it('should execute task successfully - generate code and save for review', async () => {
       await executeTask({ taskId: 'task-1', userId: 'user-1' });
 
       expect(githubService.branchExists).toHaveBeenCalled();
@@ -149,10 +156,13 @@ describe('execution service', () => {
         'main'
       );
       expect(agentService.generateCode).toHaveBeenCalled();
-      expect(githubService.createOrUpdateFile).toHaveBeenCalled();
-      expect(githubService.createPullRequest).toHaveBeenCalled();
-      expect(notifications.notifyPRCreated).toHaveBeenCalled();
-      expect(notifications.notifyTaskCompleted).toHaveBeenCalled();
+      // New flow: saves to DB for review instead of pushing to GitHub
+      expect(prisma.generatedCode.create).toHaveBeenCalled();
+      expect(prisma.task.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { status: 'AWAITING_CODE_REVIEW' },
+      });
+      expect(notifications.notifyCodeReviewReady).toHaveBeenCalled();
     });
 
     it('should reuse existing branch if it exists', async () => {
@@ -163,19 +173,23 @@ describe('execution service', () => {
       expect(githubService.createBranch).not.toHaveBeenCalled();
     });
 
-    it('should reuse existing PR if one exists', async () => {
-      (githubService.getOpenPullRequestForBranch as jest.Mock).mockResolvedValue({
-        number: 99,
-        html_url: 'https://github.com/owner/repo/pull/99',
-      });
+    it('should save generated code with correct version number', async () => {
+      (prisma.generatedCode.findFirst as jest.Mock).mockResolvedValue({ version: 2 });
 
       await executeTask({ taskId: 'task-1', userId: 'user-1' });
 
-      expect(githubService.createPullRequest).not.toHaveBeenCalled();
-      expect(githubService.addPRComment).toHaveBeenCalled();
+      expect(prisma.generatedCode.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            taskId: 'task-1',
+            version: 3,
+            status: 'PENDING_REVIEW',
+          }),
+        })
+      );
     });
 
-    it('should handle file deletions', async () => {
+    it('should handle file deletions in generated output', async () => {
       (agentService.generateCode as jest.Mock).mockResolvedValue({
         files: [{ path: 'obsolete.ts', action: 'delete' }],
         summary: 'Deleted obsolete file',
@@ -183,34 +197,26 @@ describe('execution service', () => {
 
       await executeTask({ taskId: 'task-1', userId: 'user-1' });
 
-      expect(githubService.deleteFile).toHaveBeenCalledWith(
-        'github-token',
-        'owner',
-        'repo',
-        'obsolete.ts',
-        'Delete obsolete.ts',
-        expect.any(String)
+      // Files saved to DB for review, not pushed directly
+      expect(prisma.generatedCode.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            files: [{ path: 'obsolete.ts', action: 'delete' }],
+          }),
+        })
       );
     });
 
-    it('should request reviewers if configured', async () => {
+    it('should increment version from 0 when no prior versions exist', async () => {
+      (prisma.generatedCode.findFirst as jest.Mock).mockResolvedValue(null);
+
       await executeTask({ taskId: 'task-1', userId: 'user-1' });
 
-      expect(githubService.requestReviewers).toHaveBeenCalledWith(
-        'github-token',
-        'owner',
-        'repo',
-        42,
-        ['reviewer1']
+      expect(prisma.generatedCode.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ version: 1 }),
+        })
       );
-    });
-
-    it('should not fail if requesting reviewers fails', async () => {
-      (githubService.requestReviewers as jest.Mock).mockRejectedValue(new Error('API error'));
-
-      await expect(
-        executeTask({ taskId: 'task-1', userId: 'user-1' })
-      ).resolves.not.toThrow();
     });
 
     it('should notify on failure and reset task status', async () => {
@@ -417,7 +423,7 @@ describe('execution service', () => {
       expect(githubService.addPRComment).toHaveBeenCalled();
     });
 
-    it('should handle code change requests', async () => {
+    it('should handle code change requests by saving for review', async () => {
       (agentService.classifyComment as jest.Mock).mockResolvedValue({
         intent: 'code_change',
         confidence: 0.95,
@@ -431,7 +437,6 @@ describe('execution service', () => {
         files: [{ path: 'src/index.ts', content: 'const x = 2;', action: 'modify' }],
         explanation: 'Updated code',
       });
-      (githubService.createOrUpdateFile as jest.Mock).mockResolvedValue(undefined);
 
       await handlePRComment({
         taskId: 'task-1',
@@ -442,10 +447,15 @@ describe('execution service', () => {
       });
 
       expect(agentService.generateCodeFromComment).toHaveBeenCalled();
-      expect(githubService.createOrUpdateFile).toHaveBeenCalled();
+      // New flow: saves to DB for review instead of pushing to GitHub
+      expect(prisma.generatedCode.create).toHaveBeenCalled();
+      expect(prisma.task.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { status: 'AWAITING_CODE_REVIEW' },
+      });
     });
 
-    it('should handle code deletion requests', async () => {
+    it('should handle code deletion requests by saving for review', async () => {
       (agentService.classifyComment as jest.Mock).mockResolvedValue({
         intent: 'code_change',
         confidence: 0.9,
@@ -465,7 +475,14 @@ describe('execution service', () => {
         commentAuthor: 'reviewer1',
       });
 
-      expect(githubService.deleteFile).toHaveBeenCalled();
+      // New flow: saves to DB for review instead of deleting directly
+      expect(prisma.generatedCode.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            files: [{ path: 'src/old.ts', action: 'delete' }],
+          }),
+        })
+      );
     });
 
     it('should handle classification failure', async () => {
