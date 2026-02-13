@@ -13,7 +13,7 @@ const updatePreferencesSchema = z.object({
   showActivityStatus: z.boolean().optional(),
   shareUsageAnalytics: z.boolean().optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
-  toursCompleted: z.record(z.boolean()).optional(),
+  toursCompleted: z.record(z.string(), z.boolean()).optional(),
 });
 
 export async function GET() {
@@ -53,13 +53,20 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const data = updatePreferencesSchema.parse(body);
 
+    // Prepare data for Prisma (handle toursCompleted as JSON)
+    const { toursCompleted, ...restData } = data;
+    const prismaData = {
+      ...restData,
+      ...(toursCompleted !== undefined && { toursCompleted: toursCompleted }),
+    };
+
     // Upsert preferences
     const preferences = await prisma.userPreferences.upsert({
       where: { userId: session.user.id },
-      update: data,
+      update: prismaData,
       create: {
         userId: session.user.id,
-        ...data,
+        ...prismaData,
       },
     });
 

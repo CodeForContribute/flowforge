@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BacklogList } from "@/components/backlog/BacklogList";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface BacklogPageProps {
   params: Promise<{ projectId: string }>;
@@ -33,9 +34,14 @@ export default async function BacklogPage({ params, searchParams }: BacklogPageP
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const projectWhereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
+      ...projectWhereClause,
       OR: [
         { userId: session.user.id },
         { members: { some: { userId: session.user.id } } },
@@ -49,7 +55,7 @@ export default async function BacklogPage({ params, searchParams }: BacklogPageP
 
   // Build filter conditions
   const whereConditions: Prisma.TaskWhereInput = {
-    projectId,
+    projectId: project.id,
     sprintId: null,
   };
 
@@ -121,7 +127,7 @@ export default async function BacklogPage({ params, searchParams }: BacklogPageP
   // Fetch sprints for assignment
   const sprints = await prisma.sprint.findMany({
     where: {
-      projectId,
+      projectId: project.id,
       status: { in: ["PLANNING", "ACTIVE"] },
     },
     orderBy: { startDate: "asc" },
@@ -135,8 +141,11 @@ export default async function BacklogPage({ params, searchParams }: BacklogPageP
       ],
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
+
+  // Calculate quick stats for header
+  const totalPoints = backlogTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
 
   return (
     <div className="flex h-screen flex-col">
@@ -144,34 +153,48 @@ export default async function BacklogPage({ params, searchParams }: BacklogPageP
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="border-b bg-background px-6 py-4">
+          {/* Modern Header */}
+          <header className="border-b bg-gradient-to-r from-background via-background to-muted/30 px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/project/${projectId}`}>
+                <Button variant="ghost" size="icon" className="shrink-0" asChild>
+                  <Link href={`/project/${project.projectKey}`}>
                     <ArrowLeft className="h-4 w-4" />
                   </Link>
                 </Button>
-                <div>
-                  <h1 className="text-xl font-bold">Backlog</h1>
-                  <p className="text-sm text-muted-foreground">
-                    {backlogTasks.length} tasks in backlog
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <LayoutList className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xl font-bold">Backlog</h1>
+                      <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {project.projectKey}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {backlogTasks.length} tasks • {totalPoints} story points
+                    </p>
+                  </div>
                 </div>
               </div>
-              <Button asChild>
-                <Link href={`/project/${projectId}/task/new`}>
+              <Button asChild className="shadow-lg shadow-primary/20">
+                <Link href={`/project/${project.projectKey}/task/new`}>
                   <Plus className="mr-2 h-4 w-4" />
                   New Task
                 </Link>
               </Button>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-auto p-6 bg-muted/30">
             <BacklogList
               tasks={backlogTasks}
               sprints={sprints}
-              projectId={projectId}
+              projectId={project.id}
+              projectKey={project.projectKey}
             />
           </main>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTaskEventListener } from "@/contexts/TaskEventContext";
 import {
   DndContext,
   DragOverlay,
@@ -21,14 +22,15 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TaskCard } from "@/components/tasks/TaskCard";
-import { AIPlanDialog, AIRetroView, RiskDashboard } from "@/components/sprint";
+import { SprintStatsHeader } from "./SprintStatsHeader";
+import { BurndownChart } from "./BurndownChart";
+import { AIPlanDialog, AIRetroView, ManualRetroView, RiskDashboard } from "@/components/sprint";
 import { TaskPriority, TaskStatus, SprintStatus, TaskType } from "@/types";
 import { format } from "date-fns";
 import { Calendar, Target } from "lucide-react";
@@ -76,6 +78,7 @@ interface Sprint {
 
 interface SprintBoardProps {
   sprint: Sprint;
+  projectKey?: string;
   sprintTasks: Task[];
   backlogTasks: Task[];
 }
@@ -124,6 +127,26 @@ export function SprintBoard({
   const [sprintTasks, setSprintTasks] = useState(initialSprintTasks);
   const [backlogTasks, setBacklogTasks] = useState(initialBacklogTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Listen for task status changes from other components
+  useTaskEventListener(
+    (event) => {
+      if (event.type === "status_changed" && event.data?.status) {
+        const newStatus = event.data.status as TaskStatus;
+        setSprintTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, status: newStatus } : t
+          )
+        );
+        setBacklogTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, status: newStatus } : t
+          )
+        );
+      }
+    },
+    [setSprintTasks, setBacklogTasks]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -244,34 +267,64 @@ export function SprintBoard({
                     </Tooltip>
                   )}
                   {sprint.status === "ACTIVE" && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <RiskDashboard
-                            sprintId={sprint.id}
-                            sprintName={sprint.name}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>View AI-powered risk assessment for sprint success probability</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <ManualRetroView
+                              sprintId={sprint.id}
+                              sprintName={sprint.name}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Team retrospective - collect notes during the sprint</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <RiskDashboard
+                              sprintId={sprint.id}
+                              sprintName={sprint.name}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>View AI-powered risk assessment for sprint success probability</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
                   )}
                   {sprint.status === "COMPLETED" && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <AIRetroView
-                            sprintId={sprint.id}
-                            sprintName={sprint.name}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Generate AI insights from sprint data</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <ManualRetroView
+                              sprintId={sprint.id}
+                              sprintName={sprint.name}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Team retrospective - add notes on what went well and what to improve</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <AIRetroView
+                              sprintId={sprint.id}
+                              sprintName={sprint.name}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Generate AI insights from sprint data</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
                   )}
                 </div>
               </div>
@@ -287,32 +340,33 @@ export function SprintBoard({
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>
-                {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
-              </span>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium">
-                  {sprint.stats.completedTasks}/{sprint.stats.totalTasks} tasks
-                  {sprint.stats.totalPoints > 0 && (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      ({sprint.stats.completedPoints}/{sprint.stats.totalPoints} pts)
-                    </span>
-                  )}
-                </span>
-              </div>
-              <Progress value={sprint.stats.progress} />
-            </div>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>
+              {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
+            </span>
           </div>
+          <SprintStatsHeader
+            stats={sprint.stats}
+            startDate={sprint.startDate}
+            endDate={sprint.endDate}
+            status={sprint.status}
+          />
         </CardContent>
       </Card>
+
+      {/* Burndown Chart - Only show for active sprints */}
+      {sprint.status === "ACTIVE" && (
+        <BurndownChart
+          sprintName={sprint.name}
+          status={sprint.status}
+          startDate={sprint.startDate}
+          endDate={sprint.endDate}
+          totalPoints={sprint.stats.totalPoints}
+          completedPoints={sprint.stats.completedPoints}
+        />
+      )}
 
       {/* Sprint Planning Board */}
       <DndContext

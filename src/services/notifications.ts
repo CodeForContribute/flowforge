@@ -18,6 +18,7 @@ interface NotificationData {
 interface TaskNotificationContext {
   taskId: string;
   taskTitle: string;
+  taskKey?: string;
   projectName: string;
   prNumber?: number;
   prUrl?: string;
@@ -188,11 +189,12 @@ export async function notifyPRCreated(
   userId: string,
   context: TaskNotificationContext
 ): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
   await createNotification({
     userId,
     type: "PR_CREATED",
     title: "Pull Request Created",
-    message: `A new pull request has been created for "${context.taskTitle}" in ${context.projectName}.`,
+    message: `A new pull request has been created for "${taskLabel}" in ${context.projectName}.`,
     taskId: context.taskId,
   });
 }
@@ -204,11 +206,12 @@ export async function notifyPRMerged(
   userId: string,
   context: TaskNotificationContext
 ): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
   await createNotification({
     userId,
     type: "PR_MERGED",
     title: "Pull Request Merged",
-    message: `The pull request for "${context.taskTitle}" has been merged into ${context.branchName || "main"}.`,
+    message: `The pull request for "${taskLabel}" has been merged into ${context.branchName || "main"}.`,
     taskId: context.taskId,
   });
 }
@@ -221,11 +224,12 @@ export async function notifyReviewRequested(
   context: TaskNotificationContext,
   reviewerName?: string
 ): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
   await createNotification({
     userId,
     type: "REVIEW_REQUESTED",
     title: "Changes Requested",
-    message: `${reviewerName || "A reviewer"} has requested changes on the pull request for "${context.taskTitle}".`,
+    message: `${reviewerName || "A reviewer"} has requested changes on the pull request for "${taskLabel}".`,
     taskId: context.taskId,
   });
 }
@@ -237,11 +241,12 @@ export async function notifyTaskCompleted(
   userId: string,
   context: TaskNotificationContext
 ): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
   await createNotification({
     userId,
     type: "TASK_COMPLETED",
     title: "Task Execution Completed",
-    message: `The task "${context.taskTitle}" has been successfully executed and a PR has been created.`,
+    message: `The task "${taskLabel}" has been successfully executed and a PR has been created.`,
     taskId: context.taskId,
   });
 }
@@ -254,11 +259,39 @@ export async function notifyTaskFailed(
   context: TaskNotificationContext,
   errorMessage?: string
 ): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
   await createNotification({
     userId,
     type: "TASK_FAILED",
     title: "Task Execution Failed",
-    message: `The task "${context.taskTitle}" failed to execute.${errorMessage ? ` Error: ${errorMessage}` : ""}`,
+    message: `The task "${taskLabel}" failed to execute.${errorMessage ? ` Error: ${errorMessage}` : ""}`,
+    taskId: context.taskId,
+  });
+}
+
+interface CodeReviewNotificationContext {
+  taskId: string;
+  taskTitle: string;
+  taskKey?: string;
+  projectName: string;
+  fileCount: number;
+  version: number;
+}
+
+/**
+ * Notify when generated code is ready for review
+ */
+export async function notifyCodeReviewReady(
+  userId: string,
+  context: CodeReviewNotificationContext
+): Promise<void> {
+  const taskLabel = context.taskKey ? `${context.taskKey}: ${context.taskTitle}` : context.taskTitle;
+  const versionText = context.version > 1 ? ` (version ${context.version})` : "";
+  await createNotification({
+    userId,
+    type: "CODE_REVIEW_READY",
+    title: "Code Ready for Review",
+    message: `Generated code for "${taskLabel}"${versionText} is ready for your review. ${context.fileCount} file${context.fileCount > 1 ? "s" : ""} generated.`,
     taskId: context.taskId,
   });
 }
@@ -419,10 +452,11 @@ export async function parseMentions(
     }
   }
 
-  // Add project owner if mentioned
-  if (project?.user.name && usernames.some((u) => u.toLowerCase() === project.user.name?.toLowerCase())) {
-    if (!result.some((r) => r.userId === project.user.id)) {
-      result.push({ userId: project.user.id, username: project.user.name });
+  // Add project owner if mentioned (for personal projects)
+  const projectUser = project?.user;
+  if (projectUser?.name && usernames.some((u) => u.toLowerCase() === projectUser.name?.toLowerCase())) {
+    if (!result.some((r) => r.userId === projectUser.id)) {
+      result.push({ userId: projectUser.id, username: projectUser.name });
     }
   }
 

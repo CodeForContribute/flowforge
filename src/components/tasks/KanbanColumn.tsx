@@ -10,7 +10,9 @@ interface Task {
   id: string;
   title: string;
   description: string;
+  status: TaskStatus;
   priority: TaskPriority;
+  storyPoints?: number | null;
   prNumber: number | null;
   prUrl: string | null;
   projectId: string;
@@ -23,7 +25,9 @@ interface KanbanColumnProps {
   id: TaskStatus;
   title: string;
   tasks: Task[];
+  projectKey: string;
   wipLimit?: number;
+  compact?: boolean;
 }
 
 const columnStyles: Record<TaskStatus, {
@@ -46,6 +50,10 @@ const columnStyles: Record<TaskStatus, {
     dotColor: "bg-violet-500",
     bgColor: "bg-violet-50/30 dark:bg-violet-900/10",
   },
+  AWAITING_CODE_REVIEW: {
+    dotColor: "bg-amber-500",
+    bgColor: "bg-amber-50/30 dark:bg-amber-900/10",
+  },
   PR_OPEN: {
     dotColor: "bg-cyan-500",
     bgColor: "bg-cyan-50/30 dark:bg-cyan-900/10",
@@ -57,6 +65,10 @@ const columnStyles: Record<TaskStatus, {
   CHANGES_REQUESTED: {
     dotColor: "bg-orange-500",
     bgColor: "bg-orange-50/30 dark:bg-orange-900/10",
+  },
+  HAS_CONFLICTS: {
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50/30 dark:bg-red-900/10",
   },
   APPROVED: {
     dotColor: "bg-emerald-500",
@@ -72,7 +84,7 @@ const columnStyles: Record<TaskStatus, {
   },
 };
 
-export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, tasks, projectKey, wipLimit, compact = false }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -82,16 +94,25 @@ export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) 
   const isAtLimit = wipLimit !== undefined && wipLimit > 0 && tasks.length === wipLimit;
 
   return (
-    <div className="flex flex-col h-full min-w-[280px] max-w-[320px]" data-testid={`column-${id}`}>
-      <div className="flex items-center justify-between px-2 py-3">
+    <div
+      className={cn(
+        "flex flex-col transition-all duration-300 min-w-[250px]",
+        compact ? "min-h-[150px]" : "h-full"
+      )}
+      data-testid={`column-${id}`}
+    >
+      <div className={cn(
+        "flex items-center justify-between px-2",
+        compact ? "py-2" : "py-3"
+      )}>
         <div className="flex items-center gap-2">
           <div className={cn("h-2 w-2 rounded-full", style.dotColor)} />
-          <h3 className="font-semibold text-sm">{title}</h3>
+          <h3 className={cn("font-semibold", compact ? "text-xs" : "text-sm")}>{title}</h3>
         </div>
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              "text-xs font-medium px-2 py-1 rounded-full min-w-[24px] text-center transition-colors",
+              "text-xs font-medium px-2 py-0.5 rounded-full min-w-[24px] text-center transition-colors",
               isOverLimit
                 ? "bg-destructive/20 text-destructive dark:bg-destructive/30"
                 : isAtLimit
@@ -112,16 +133,20 @@ export function KanbanColumn({ id, title, tasks, wipLimit }: KanbanColumnProps) 
           "flex-1 p-2 rounded-xl overflow-y-auto transition-all duration-200",
           style.bgColor,
           isOver && "ring-2 ring-primary/50 ring-dashed bg-primary/5",
-          isOverLimit && "ring-2 ring-destructive/50"
+          isOverLimit && "ring-2 ring-destructive/50",
+          compact && "max-h-[300px]"
         )}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} projectKey={projectKey} />
             ))}
             {tasks.length === 0 && (
-              <div className="text-center py-8 text-sm text-muted-foreground">
+              <div className={cn(
+                "text-center text-sm text-muted-foreground",
+                compact ? "py-4" : "py-8"
+              )}>
                 <p className="opacity-60">No tasks</p>
               </div>
             )}

@@ -34,6 +34,13 @@ const statusConfig: Record<TaskStatus, {
     textColor: "text-violet-700 dark:text-violet-300",
     isAnimated: true,
   },
+  AWAITING_CODE_REVIEW: {
+    label: "Awaiting Review",
+    dotColor: "bg-amber-500",
+    bgColor: "bg-amber-50 dark:bg-amber-900/30",
+    textColor: "text-amber-700 dark:text-amber-300",
+    isAnimated: true,
+  },
   PR_OPEN: {
     label: "PR Open",
     dotColor: "bg-cyan-500",
@@ -58,6 +65,13 @@ const statusConfig: Record<TaskStatus, {
     dotColor: "bg-emerald-500",
     bgColor: "bg-emerald-50 dark:bg-emerald-900/30",
     textColor: "text-emerald-700 dark:text-emerald-300",
+  },
+  HAS_CONFLICTS: {
+    label: "Has Conflicts",
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50 dark:bg-red-900/30",
+    textColor: "text-red-700 dark:text-red-300",
+    isAnimated: true,
   },
   MERGED: {
     label: "Merged",

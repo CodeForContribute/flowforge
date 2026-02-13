@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { Workflow, LogOut, Settings, User } from "lucide-react";
+import { Workflow, LogOut, Settings, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
+import { OrganizationSwitcher } from "./OrganizationSwitcher";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -30,6 +31,12 @@ export function Navbar() {
             FlowForge
           </span>
         </Link>
+
+        {session?.user && (
+          <div className="ml-4" data-tour-id="org-switcher">
+            <OrganizationSwitcher />
+          </div>
+        )}
 
         <div className="flex-1" />
 
@@ -76,6 +83,12 @@ export function Navbar() {
                   <Link href="/settings" className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/organizations" className="cursor-pointer">
+                    <Building2 className="mr-2 h-4 w-4" />
+                    Organizations
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

@@ -21,9 +21,20 @@ model User {
   comments      Comment[]
   assignedTasks Task[]    @relation("AssignedTasks")
   watchedTasks  Task[]    @relation("TaskWatchers")
-  memberships   ProjectMember[]
-  preferences   UserPreferences?
-  notifications Notification[]
+  memberships       ProjectMember[]
+  preferences       UserPreferences?
+  notifications     Notification[]
+  commentReactions  CommentReaction[]
+  attachments       Attachment[]
+  savedFilters      SavedFilter[]
+  timeLogs          TimeLog[]
+  taskVotes         TaskVote[]
+  activities        Activity[]
+  retroItems        SprintRetroItem[]
+
+  // Organization relations
+  organizationMemberships OrganizationMember[]
+  defaultOrganizationId   String?
 
   @@map("users")
 }
@@ -66,18 +77,34 @@ model Project {
   defaultBranch String    @default("main")
   reviewers     String[]  // GitHub usernames
   agentModel    String    @default("claude-sonnet-4-20250514")
-  wipLimits     Json?     // WIP limits per status: { "IN_PROGRESS": 3, "IN_REVIEW": 5 }
+  wipLimits       Json?     // WIP limits per status: { "IN_PROGRESS": 3, "IN_REVIEW": 5 }
+  boardColumns    Json?     // Custom board columns: [{ id: TaskStatus, title: string, order: number }]
+  workflow        Json?     // Workflow definition: { id, name, transitions[], initialStatus, doneStatuses[] }
+  automationRules Json?     // Automation rules: [{ id, name, trigger, conditions[], actions[] }]
+  customFields    Json?     // Custom field definitions: [{ id, name, type, options?, required }]
+  projectKey      String    @unique // Jira-style key e.g., "FF", "FLOW" (2-10 uppercase)
+  taskCounter   Int       @default(0) // Counter for auto-incrementing task numbers
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Owner - optional for org projects (null when owned by org)
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Organization - optional for personal projects
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   tasks         Task[]
   sprints       Sprint[]
   labels        Label[]
   members       ProjectMember[]
-  aiSettings    ProjectAISettings?
+  aiSettings       ProjectAISettings?
+  savedFilters     SavedFilter[]
+  versions         Version[]
+  activities       Activity[]
+  webhooks         ProjectWebhook[]
+  slackIntegration SlackIntegration?
 
   @@map("projects")
 }
@@ -113,6 +140,44 @@ enum MemberRole {
   MEMBER
 }
 
+// ============= ORGANIZATION/MULTI-TENANCY =============
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique  // URL-friendly identifier
+  description String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     OrganizationMember[]
+  projects    Project[]
+
+  @@map("organizations")
+}
+
+enum OrganizationRole {
+  OWNER   // Full control, can delete org
+  ADMIN   // Manage members, projects, settings
+  MEMBER  // Access to org projects
+}
+
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  role           OrganizationRole @default(MEMBER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
 model ProjectMember {
   id        String     @id @default(cuid())
   role      MemberRole @default(MEMBER)
@@ -146,8 +211,33 @@ model Sprint {
   projectId String
   project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks     Task[]
+  retroItems SprintRetroItem[]
 
   @@map("sprints")
+}
+
+enum RetroItemType {
+  WENT_WELL
+  TO_IMPROVE
+  ACTION_ITEM
+}
+
+model SprintRetroItem {
+  id        String        @id @default(cuid())
+  content   String
+  type      RetroItemType
+  votes     Int           @default(0)
+  completed Boolean       @default(false) // For action items
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  sprintId  String
+  sprint    Sprint        @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("sprint_retro_items")
 }
 
 model Label {
@@ -169,10 +259,12 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   GENERATING
+  AWAITING_CODE_REVIEW
   PR_OPEN
   IN_REVIEW
   CHANGES_REQUESTED
   APPROVED
+  HAS_CONFLICTS
   MERGED
   CLOSED
 }
@@ -202,13 +294,24 @@ model Task {
   storyPoints   Int?
   dueDate       DateTime?
 
+  // Human-readable ID (Jira-style)
+  taskNumber    Int          // Sequential number within project (1, 2, 3...)
+  taskKey       String       @unique // Computed: "FF-1", "FLOW-42"
+
   // GitHub PR info
   branchName    String?
+  baseBranch    String?   // Base branch for PR (overrides project default)
   prNumber      Int?
   prUrl         String?
+  conflictInfo  Json?     // Stores MergeConflictInfo when PR has conflicts
 
   // Generated content
   generatedPrompt String?    @db.Text
+
+  // Time tracking
+  originalEstimate Int?      // Original estimate in minutes
+  timeRemaining    Int?      // Time remaining in minutes (can be manually set)
+  customFieldValues Json?    // Custom field values: { fieldId: value }
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -225,6 +328,10 @@ model Task {
   sprintId      String?
   sprint        Sprint?      @relation(fields: [sprintId], references: [id])
 
+  // Version/Release relation
+  versionId     String?
+  version       Version?     @relation(fields: [versionId], references: [id])
+
   // Task hierarchy
   parentTaskId  String?
   parentTask    Task?        @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
@@ -239,16 +346,50 @@ model Task {
   comments      Comment[]
   executions    Execution[]
   notifications Notification[]
+  generatedCodes GeneratedCode[]
+  attachments   Attachment[]
+  timeLogs      TimeLog[]
 
+  // Task Links
+  sourceLinks   TaskLink[] @relation("SourceLinks")
+  targetLinks   TaskLink[] @relation("TargetLinks")
+
+  // Voting
+  votes         TaskVote[]
+
+  // Activity tracking
+  activities    Activity[]
+
+  @@unique([projectId, taskNumber])
   @@map("tasks")
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  name        String   // Original filename
+  url         String   // Storage URL (could be S3, Cloudinary, etc.)
+  type        String   // MIME type (image/png, application/pdf, etc.)
+  size        Int      // File size in bytes
+  createdAt   DateTime @default(now())
+
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  uploadedById String
+  uploadedBy   User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
 }
 
 model Comment {
   id            String    @id @default(cuid())
   content       String    @db.Text
+  type          CommentType @default(COMMENT)  // Type of comment
   isSystem      Boolean   @default(false)  // True for agent-generated comments
   mentions      String[]  @default([])     // Array of mentioned user IDs
+  metadata      Json?     // Structured data for activity comments
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   taskId        String
   task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -256,7 +397,29 @@ model Comment {
   userId        String?
   user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  reactions     CommentReaction[]
+
   @@map("comments")
+}
+
+model CommentReaction {
+  id          String   @id @default(cuid())
+  emoji       String   // Emoji character (e.g., "👍", "❤️", "🎉")
+  createdAt   DateTime @default(now())
+
+  commentId   String
+  comment     Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])  // One reaction per emoji per user
+  @@map("comment_reactions")
+}
+
+enum CommentType {
+  COMMENT     // Regular user comment
+  ACTIVITY    // System activity summary
 }
 
 enum ExecutionStatus {
@@ -266,9 +429,17 @@ enum ExecutionStatus {
   FAILED
 }
 
+enum GeneratedCodeStatus {
+  PENDING_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
 enum ExecutionStep {
   CREATE_BRANCH
   GENERATE_CODE
+  AWAIT_CODE_REVIEW
   COMMIT_FILES
   CREATE_PR
   REQUEST_REVIEWERS
@@ -276,6 +447,9 @@ enum ExecutionStep {
   MERGE_PR
   ANALYZE_COMMENT
   RESPOND_TO_COMMENT
+  CHECK_CONFLICTS
+  UPDATE_BRANCH
+  RESOLVE_CONFLICTS
 }
 
 model Execution {
@@ -295,6 +469,33 @@ model Execution {
   task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("executions")
+}
+
+enum GeneratedCodeType {
+  INITIAL_EXECUTION
+  PR_COMMENT_RESPONSE
+  REVIEW_RESPONSE
+}
+
+model GeneratedCode {
+  id              String              @id @default(cuid())
+  files           Json                // Array of GeneratedFile: { path, content, action }
+  summary         String              @db.Text
+  userFeedback    String?             @db.Text
+  version         Int                 @default(1)
+  status          GeneratedCodeStatus @default(PENDING_REVIEW)
+  type            GeneratedCodeType   @default(INITIAL_EXECUTION)
+  prCommentId     String?             // GitHub comment ID if responding to a PR comment
+  prCommentBody   String?             @db.Text // The comment being responded to
+  prCommentAuthor String?             // GitHub username of the comment author
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  reviewedAt      DateTime?
+
+  taskId        String
+  task          Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("generated_code")
 }
 
 model WebhookEvent {
@@ -318,6 +519,50 @@ enum NotificationType {
   MENTIONED
   TASK_UPDATED      // For watchers when task is updated
   COMMENT_ADDED     // For watchers when comment is added
+  CODE_REVIEW_READY // For when generated code is ready for review
+}
+
+// ============= TASK LINKING =============
+
+enum LinkType {
+  BLOCKS        // source blocks target (target is blocked by source)
+  RELATES_TO    // bidirectional relation
+  DUPLICATES    // source duplicates target (target is duplicated by source)
+}
+
+model TaskLink {
+  id           String   @id @default(cuid())
+  linkType     LinkType
+  createdAt    DateTime @default(now())
+
+  sourceTaskId String
+  sourceTask   Task     @relation("SourceLinks", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+
+  targetTaskId String
+  targetTask   Task     @relation("TargetLinks", fields: [targetTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTaskId, targetTaskId, linkType])
+  @@map("task_links")
+}
+
+// ============= SAVED FILTERS =============
+
+model SavedFilter {
+  id          String   @id @default(cuid())
+  name        String
+  filters     Json     // Stored filter criteria
+  isShared    Boolean  @default(false) // Shared with project members
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, name]) // Unique name per user per project
+  @@map("saved_filters")
 }
 
 model Notification {
@@ -341,4 +586,178 @@ model Notification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// ============= TIME TRACKING =============
+
+model TimeLog {
+  id          String   @id @default(cuid())
+  timeSpent   Int      // Time spent in minutes
+  date        DateTime @default(now()) // Date the work was done
+  description String?  @db.Text // Description of work done
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_logs")
+}
+
+// ============= VERSIONS/RELEASES =============
+
+enum VersionStatus {
+  UNRELEASED
+  RELEASED
+  ARCHIVED
+}
+
+model Version {
+  id          String        @id @default(cuid())
+  name        String        // e.g., "1.0.0", "v2.1", "Sprint 5 Release"
+  description String?       @db.Text
+  releaseDate DateTime?     // Target or actual release date
+  status      VersionStatus @default(UNRELEASED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks       Task[]
+
+  @@unique([projectId, name])
+  @@map("versions")
+}
+
+// ============= PHASE 7: COLLABORATION & INTEGRATIONS =============
+
+// Task Voting - users can upvote tasks to help prioritize
+model TaskVote {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId]) // One vote per user per task
+  @@map("task_votes")
+}
+
+// Activity Stream - tracks all project activities
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  STATUS_CHANGED
+  ASSIGNEE_CHANGED
+  SPRINT_CHANGED
+  COMMENT_ADDED
+  PR_CREATED
+  PR_MERGED
+  LABEL_ADDED
+  LABEL_REMOVED
+  VOTE_ADDED
+  VOTE_REMOVED
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  description String       // Human-readable description
+  metadata    Json?        // Additional context (old/new values, etc.)
+  createdAt   DateTime     @default(now())
+
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  taskId      String?
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@map("activities")
+}
+
+// Outbound Webhooks - trigger external systems on events
+enum WebhookTrigger {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  STATUS_CHANGED
+  PR_CREATED
+  PR_MERGED
+  COMMENT_ADDED
+  SPRINT_STARTED
+  SPRINT_COMPLETED
+}
+
+model ProjectWebhook {
+  id          String          @id @default(cuid())
+  name        String
+  url         String          // Webhook URL to POST to
+  secret      String?         // Optional secret for HMAC signing
+  triggers    WebhookTrigger[] // Events that trigger this webhook
+  enabled     Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  deliveries  WebhookDelivery[]
+
+  @@map("project_webhooks")
+}
+
+// Webhook delivery log for debugging
+model WebhookDelivery {
+  id            String   @id @default(cuid())
+  trigger       WebhookTrigger
+  payload       Json     // The data sent
+  responseCode  Int?     // HTTP response code
+  responseBody  String?  @db.Text // Response body (truncated)
+  success       Boolean  @default(false)
+  error         String?  @db.Text // Error message if failed
+  deliveredAt   DateTime @default(now())
+
+  webhookId     String
+  webhook       ProjectWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, deliveredAt])
+  @@map("webhook_deliveries")
+}
+
+// Slack Integration
+model SlackIntegration {
+  id              String   @id @default(cuid())
+  teamId          String   // Slack workspace ID
+  teamName        String   // Slack workspace name
+  channelId       String   // Default channel to post to
+  channelName     String   // Channel name for display
+  accessToken     String   // Encrypted Slack bot token
+  botUserId       String   // Slack bot user ID
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Notification settings
+  notifyTaskCreated    Boolean @default(true)
+  notifyStatusChanged  Boolean @default(true)
+  notifyPrCreated      Boolean @default(true)
+  notifyPrMerged       Boolean @default(true)
+  notifyComments       Boolean @default(false)
+
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("slack_integrations")
 }

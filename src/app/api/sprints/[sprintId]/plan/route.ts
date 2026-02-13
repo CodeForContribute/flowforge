@@ -102,12 +102,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
 
       if (project) {
+        const ownerCapacity = project.user ? [{
+          userId: project.user.id,
+          name: project.user.name || "Project Owner",
+          availableHours: 40, // Default to full-time
+        }] : [];
+
         teamCapacity = [
-          {
-            userId: project.user.id,
-            name: project.user.name || "Project Owner",
-            availableHours: 40, // Default to full-time
-          },
+          ...ownerCapacity,
           ...project.members.map((m) => ({
             userId: m.user.id,
             name: m.user.name || "Team Member",

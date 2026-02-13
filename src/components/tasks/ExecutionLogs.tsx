@@ -25,6 +25,10 @@ import {
   Search,
   Reply,
   History,
+  Eye,
+  AlertTriangle,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -37,6 +41,7 @@ interface ExecutionLogsProps {
 const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch; color: string }> = {
   CREATE_BRANCH: { label: "Create Branch", icon: GitBranch, color: "text-cyan-500" },
   GENERATE_CODE: { label: "Generate Code", icon: Code, color: "text-violet-500" },
+  AWAIT_CODE_REVIEW: { label: "Awaiting Code Review", icon: Eye, color: "text-amber-500" },
   COMMIT_FILES: { label: "Commit Files", icon: FileCode, color: "text-blue-500" },
   CREATE_PR: { label: "Create Pull Request", icon: GitPullRequest, color: "text-green-500" },
   REQUEST_REVIEWERS: { label: "Request Reviewers", icon: Users, color: "text-amber-500" },
@@ -44,6 +49,9 @@ const stepConfig: Record<ExecutionStep, { label: string; icon: typeof GitBranch;
   MERGE_PR: { label: "Merge Pull Request", icon: GitMerge, color: "text-emerald-500" },
   ANALYZE_COMMENT: { label: "Analyze Comment", icon: Search, color: "text-indigo-500" },
   RESPOND_TO_COMMENT: { label: "Respond to Comment", icon: Reply, color: "text-pink-500" },
+  CHECK_CONFLICTS: { label: "Check Conflicts", icon: AlertTriangle, color: "text-yellow-500" },
+  UPDATE_BRANCH: { label: "Update Branch", icon: RefreshCw, color: "text-blue-400" },
+  RESOLVE_CONFLICTS: { label: "Resolve Conflicts", icon: Sparkles, color: "text-purple-500" },
 };
 
 const statusConfig: Record<ExecutionStatus, { label: string; icon: typeof CheckCircle; className: string; bgColor: string }> = {

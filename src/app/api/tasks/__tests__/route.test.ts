@@ -7,11 +7,20 @@ import { prisma } from '@/lib/prisma';
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn(),
 }));
+jest.mock('@/lib/auth', () => ({ authOptions: {} }));
+jest.mock('@/lib/task-lookup', () => ({
+  generateNextTaskKey: jest.fn().mockResolvedValue({ taskNumber: 1, taskKey: 'PROJ-1' }),
+}));
+jest.mock('@/services/automation', () => ({
+  executeAutomations: jest.fn().mockResolvedValue(undefined),
+  buildTaskContext: jest.fn().mockReturnValue({}),
+}));
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     project: {
       findFirst: jest.fn(),
+      update: jest.fn(),
     },
     task: {
       findMany: jest.fn(),
@@ -461,7 +470,7 @@ describe('Tasks API', () => {
         }),
       });
       const response = await POST(request);
-      const data = await response.json();
+      await response.json();
 
       expect(response.status).toBe(201);
       expect(prisma.task.create).toHaveBeenCalledWith(

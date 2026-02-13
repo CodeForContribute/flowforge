@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SprintListPage } from "@/components/sprints/SprintListPage";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface SprintPageProps {
   params: Promise<{ projectId: string }>;
@@ -21,9 +22,14 @@ export default async function SprintPage({ params }: SprintPageProps) {
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const projectWhereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
+      ...projectWhereClause,
       OR: [
         { userId: session.user.id },
         { members: { some: { userId: session.user.id } } },
@@ -37,7 +43,7 @@ export default async function SprintPage({ params }: SprintPageProps) {
 
   // Fetch all sprints with task counts
   const sprints = await prisma.sprint.findMany({
-    where: { projectId },
+    where: { projectId: project.id },
     include: {
       tasks: {
         select: {
@@ -84,7 +90,7 @@ export default async function SprintPage({ params }: SprintPageProps) {
       ],
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   return (
@@ -97,7 +103,7 @@ export default async function SprintPage({ params }: SprintPageProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/project/${projectId}`}>
+                  <Link href={`/project/${project.projectKey}`}>
                     <ArrowLeft className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -111,7 +117,7 @@ export default async function SprintPage({ params }: SprintPageProps) {
             </div>
           </header>
           <main className="flex-1 overflow-auto p-6">
-            <SprintListPage sprints={sprintsWithStats} projectId={projectId} />
+            <SprintListPage sprints={sprintsWithStats} projectId={project.id} projectKey={project.projectKey} />
           </main>
         </div>
       </div>

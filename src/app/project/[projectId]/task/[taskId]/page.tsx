@@ -5,6 +5,8 @@ import { redirect, notFound } from "next/navigation";
 import { TaskDetail } from "@/components/tasks/TaskDetail";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { isProjectKey, isTaskKey } from "@/lib/task-lookup";
+import { MergeConflictInfo, WorkflowDefinition } from "@/types";
 
 interface TaskPageProps {
   params: Promise<{ projectId: string; taskId: string }>;
@@ -18,12 +20,24 @@ export default async function TaskPage({ params }: TaskPageProps) {
     redirect("/login");
   }
 
+  // Support both CUID and human-readable key lookups
+  const projectWhereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
+  const taskWhereClause = isTaskKey(taskId)
+    ? { taskKey: taskId }
+    : { id: taskId };
+
   const task = await prisma.task.findFirst({
     where: {
-      id: taskId,
-      projectId: projectId,
+      ...taskWhereClause,
       project: {
-        userId: session.user.id,
+        ...projectWhereClause,
+        OR: [
+          { userId: session.user.id },
+          { members: { some: { userId: session.user.id } } },
+        ],
       },
     },
     include: {
@@ -35,7 +49,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
         select: { id: true, name: true, status: true },
       },
       parentTask: {
-        select: { id: true, title: true, taskType: true, status: true },
+        select: { id: true, title: true, taskType: true, status: true, taskKey: true },
       },
       subtasks: {
         select: {
@@ -45,6 +59,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
           status: true,
           priority: true,
           storyPoints: true,
+          taskKey: true,
           assignee: {
             select: { id: true, name: true, image: true },
           },
@@ -55,10 +70,25 @@ export default async function TaskPage({ params }: TaskPageProps) {
       comments: {
         include: {
           user: true,
+          reactions: {
+            include: {
+              user: {
+                select: { id: true, name: true, image: true },
+              },
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
       },
       executions: {
+        orderBy: { createdAt: "desc" },
+      },
+      attachments: {
+        include: {
+          uploadedBy: {
+            select: { id: true, name: true, image: true },
+          },
+        },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -68,10 +98,25 @@ export default async function TaskPage({ params }: TaskPageProps) {
     notFound();
   }
 
+  // Cast JSON fields from Prisma JsonValue to proper types
+  const taskWithTypedConflictInfo = {
+    ...task,
+    conflictInfo: task.conflictInfo as MergeConflictInfo | null,
+    project: {
+      ...task.project,
+      workflow: task.project.workflow as WorkflowDefinition | null,
+    },
+  };
+
   const projects = await prisma.project.findMany({
-    where: { userId: session.user.id },
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { members: { some: { userId: session.user.id } } },
+      ],
+    },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   return (
@@ -80,7 +125,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">
-          <TaskDetail task={task} />
+          <TaskDetail task={taskWithTypedConflictInfo} currentUserId={session.user.id} />
         </main>
       </div>
     </div>

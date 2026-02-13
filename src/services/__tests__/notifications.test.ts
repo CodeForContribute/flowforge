@@ -164,6 +164,7 @@ describe('notifications service', () => {
 
       await createNotification({
         userId: 'user-1',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         type: 'MENTIONED' as any,
         title: 'Test',
         message: 'Test',

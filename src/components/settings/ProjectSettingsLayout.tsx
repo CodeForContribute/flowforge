@@ -2,46 +2,84 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Users, Tag, AlertTriangle, Sparkles } from "lucide-react";
+import { Settings, Users, Tag, AlertTriangle, Sparkles, LayoutGrid, Workflow, Zap, Package, Settings2, Webhook, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProjectSettingsLayoutProps {
   children: React.ReactNode;
   projectId: string;
+  projectKey?: string;
   projectName: string;
 }
 
 export function ProjectSettingsLayout({
   children,
   projectId,
+  projectKey,
   projectName,
 }: ProjectSettingsLayoutProps) {
   const pathname = usePathname();
+  const projectSlug = projectKey || projectId;
 
   const settingsNav = [
     {
       title: "General",
-      href: `/project/${projectId}/settings`,
+      href: `/project/${projectSlug}/settings`,
       icon: Settings,
     },
     {
+      title: "Board",
+      href: `/project/${projectSlug}/settings/board`,
+      icon: LayoutGrid,
+    },
+    {
+      title: "Workflow",
+      href: `/project/${projectSlug}/settings/workflow`,
+      icon: Workflow,
+    },
+    {
+      title: "Automation",
+      href: `/project/${projectSlug}/settings/automation`,
+      icon: Zap,
+    },
+    {
       title: "AI Integrations",
-      href: `/project/${projectId}/settings/ai`,
+      href: `/project/${projectSlug}/settings/ai`,
       icon: Sparkles,
     },
     {
       title: "Members",
-      href: `/project/${projectId}/settings/members`,
+      href: `/project/${projectSlug}/settings/members`,
       icon: Users,
     },
     {
       title: "Labels",
-      href: `/project/${projectId}/settings/labels`,
+      href: `/project/${projectSlug}/settings/labels`,
       icon: Tag,
     },
     {
+      title: "Custom Fields",
+      href: `/project/${projectSlug}/settings/custom-fields`,
+      icon: Settings2,
+    },
+    {
+      title: "Versions",
+      href: `/project/${projectSlug}/settings/versions`,
+      icon: Package,
+    },
+    {
+      title: "Webhooks",
+      href: `/project/${projectSlug}/settings/webhooks`,
+      icon: Webhook,
+    },
+    {
+      title: "Slack",
+      href: `/project/${projectSlug}/settings/slack`,
+      icon: MessageSquare,
+    },
+    {
       title: "Danger Zone",
-      href: `/project/${projectId}/settings/danger`,
+      href: `/project/${projectSlug}/settings/danger`,
       icon: AlertTriangle,
       danger: true,
     },
@@ -59,9 +97,9 @@ export function ProjectSettingsLayout({
         <nav className="md:w-56 space-y-1">
           {settingsNav.map((item) => {
             const isActive =
-              item.href === `/project/${projectId}/settings`
-                ? pathname === item.href
-                : pathname.startsWith(item.href);
+              item.href === `/project/${projectSlug}/settings`
+                ? pathname === item.href || pathname === `/project/${projectId}/settings`
+                : pathname.startsWith(item.href) || pathname.startsWith(item.href.replace(projectSlug, projectId));
             return (
               <Link
                 key={item.href}

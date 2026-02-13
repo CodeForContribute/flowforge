@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { estimateTask, applyEstimation } from "@/services/ai";
+import { isTaskKey } from "@/lib/task-lookup";
 
 const estimateRequestSchema = z.object({
   includeCodebaseAnalysis: z.boolean().optional().default(false),
@@ -33,10 +34,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json().catch(() => ({}));
     const data = estimateRequestSchema.parse(body);
 
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify task access
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Generate the estimate
     const estimation = await estimateTask({
-      taskId,
+      taskId: task.id,
       includeCodebaseAnalysis: data.includeCodebaseAnalysis,
     });
 
@@ -95,10 +101,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const data = applyEstimateSchema.parse(body);
 
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify task access with edit permissions
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -117,7 +128,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Apply the estimate
-    await applyEstimation(taskId, data.storyPoints);
+    await applyEstimation(task.id, data.storyPoints);
 
     return NextResponse.json({
       success: true,
@@ -150,10 +161,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify task access
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },

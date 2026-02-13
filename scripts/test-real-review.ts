@@ -34,9 +34,9 @@ async function testRealReview() {
   console.log(`Branch: ${task.branchName}`);
   console.log(`Status: ${task.status}\n`);
 
-  const accessToken = task.project.user.accessToken;
+  const accessToken = task.project.user?.accessToken;
   if (!accessToken) {
-    console.log("ERROR: No access token");
+    console.log("ERROR: No access token (project may be org-owned or user not found)");
     await prisma.$disconnect();
     return;
   }

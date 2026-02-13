@@ -60,7 +60,12 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           session.user.id = dbUser.id;
           session.user.accessToken = dbUser.accessToken;
+          session.user.defaultOrganizationId = dbUser.defaultOrganizationId || undefined;
         }
+      }
+      // Pass active organization from token to session
+      if (token.activeOrganizationId) {
+        session.user.activeOrganizationId = token.activeOrganizationId as string;
       }
       return session;
     },
@@ -82,6 +87,8 @@ declare module "next-auth" {
       name: string | null;
       image: string | null;
       accessToken: string;
+      defaultOrganizationId?: string;
+      activeOrganizationId?: string;
     };
   }
 }
@@ -91,5 +98,6 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     githubId?: string;
     userId?: string;
+    activeOrganizationId?: string;
   }
 }

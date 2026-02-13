@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Bell, GitPullRequest, CheckCircle, MessageSquare, AlertTriangle, Loader2 } from "lucide-react";
+import { Bell, GitPullRequest, CheckCircle, MessageSquare, AlertTriangle, Loader2, Eye, AtSign, RefreshCw, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
   id: string;
-  type: "PR_CREATED" | "PR_MERGED" | "REVIEW_REQUESTED" | "TASK_COMPLETED" | "TASK_FAILED";
+  type: "PR_CREATED" | "PR_MERGED" | "REVIEW_REQUESTED" | "TASK_COMPLETED" | "TASK_FAILED" | "MENTIONED" | "TASK_UPDATED" | "COMMENT_ADDED" | "CODE_REVIEW_READY";
   title: string;
   message: string;
   read: boolean;
@@ -25,24 +25,36 @@ interface Notification {
   task?: {
     id: string;
     title: string;
+    taskKey?: string;
     projectId: string;
+    project?: {
+      projectKey?: string;
+    };
   } | null;
 }
 
-const notificationIcons = {
+const notificationIcons: Record<string, typeof Bell> = {
   PR_CREATED: GitPullRequest,
   PR_MERGED: CheckCircle,
   REVIEW_REQUESTED: MessageSquare,
   TASK_COMPLETED: CheckCircle,
   TASK_FAILED: AlertTriangle,
+  MENTIONED: AtSign,
+  TASK_UPDATED: RefreshCw,
+  COMMENT_ADDED: MessageCircle,
+  CODE_REVIEW_READY: Eye,
 };
 
-const notificationColors = {
+const notificationColors: Record<string, string> = {
   PR_CREATED: "text-blue-500",
   PR_MERGED: "text-green-500",
   REVIEW_REQUESTED: "text-orange-500",
   TASK_COMPLETED: "text-green-500",
   TASK_FAILED: "text-red-500",
+  MENTIONED: "text-purple-500",
+  TASK_UPDATED: "text-blue-500",
+  COMMENT_ADDED: "text-cyan-500",
+  CODE_REVIEW_READY: "text-amber-500",
 };
 
 export function NotificationBell() {
@@ -147,8 +159,13 @@ export function NotificationBell() {
         ) : (
           <div className="max-h-[400px] overflow-y-auto">
             {notifications.map((notification) => {
-              const Icon = notificationIcons[notification.type];
-              const iconColor = notificationColors[notification.type];
+              const Icon = notificationIcons[notification.type] || Bell;
+              const iconColor = notificationColors[notification.type] || "text-muted-foreground";
+
+              // Build the task link using projectKey/taskKey if available
+              const taskLink = notification.task
+                ? `/project/${notification.task.project?.projectKey || notification.task.projectId}/task/${notification.task.taskKey || notification.task.id}`
+                : "/settings/notifications";
 
               return (
                 <DropdownMenuItem
@@ -159,13 +176,7 @@ export function NotificationBell() {
                   )}
                   asChild
                 >
-                  <Link
-                    href={
-                      notification.task
-                        ? `/project/${notification.task.projectId}/task/${notification.task.id}`
-                        : "/settings/notifications"
-                    }
-                  >
+                  <Link href={taskLink}>
                     <div
                       className={cn(
                         "mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0",

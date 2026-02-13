@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ProjectSettingsLayout } from "@/components/settings/ProjectSettingsLayout";
 import { AIIntegrationsSettings } from "@/components/settings/AIIntegrationsSettings";
+import { isProjectKey } from "@/lib/task-lookup";
 
 interface AISettingsPageProps {
   params: Promise<{ projectId: string }>;
@@ -19,9 +20,14 @@ export default async function AISettingsPage({ params }: AISettingsPageProps) {
     redirect("/login");
   }
 
+  // Support both CUID and projectKey lookups
+  const whereClause = isProjectKey(projectId)
+    ? { projectKey: projectId }
+    : { id: projectId };
+
   const project = await prisma.project.findFirst({
     where: {
-      id: projectId,
+      ...whereClause,
       OR: [
         { userId: session.user.id },
         { members: { some: { userId: session.user.id } } },
@@ -43,7 +49,7 @@ export default async function AISettingsPage({ params }: AISettingsPageProps) {
       ],
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   return (
@@ -52,8 +58,8 @@ export default async function AISettingsPage({ params }: AISettingsPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30">
-          <ProjectSettingsLayout projectId={projectId} projectName={project.name}>
-            <AIIntegrationsSettings projectId={projectId} isOwner={isOwner} />
+          <ProjectSettingsLayout projectId={project.projectKey || project.id} projectName={project.name}>
+            <AIIntegrationsSettings projectId={project.id} isOwner={isOwner} />
           </ProjectSettingsLayout>
         </main>
       </div>

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 interface Project {
   id: string;
   name: string;
+  projectKey?: string;
 }
 
 interface SidebarProps {
@@ -91,7 +92,8 @@ export function Sidebar({ projects = [] }: SidebarProps) {
               <p className="px-2 text-sm text-muted-foreground">No projects yet</p>
             ) : (
               projects.map((project) => {
-                const isActive = pathname.startsWith(`/project/${project.id}`);
+                const projectSlug = project.projectKey || project.id;
+                const isActive = pathname.startsWith(`/project/${project.id}`) || pathname.startsWith(`/project/${project.projectKey}`);
                 const colorClass = getProjectColor(project.id);
                 return (
                   <Button
@@ -103,7 +105,7 @@ export function Sidebar({ projects = [] }: SidebarProps) {
                     )}
                     asChild
                   >
-                    <Link href={`/project/${project.id}`}>
+                    <Link href={`/project/${projectSlug}`}>
                       <div className={cn("mr-2 h-2 w-2 rounded-full", colorClass)} />
                       <span className="truncate">{project.name}</span>
                     </Link>

@@ -4,10 +4,12 @@ export type TaskStatus =
   | "TODO"
   | "IN_PROGRESS"
   | "GENERATING"
+  | "AWAITING_CODE_REVIEW"
   | "PR_OPEN"
   | "IN_REVIEW"
   | "CHANGES_REQUESTED"
   | "APPROVED"
+  | "HAS_CONFLICTS"
   | "MERGED"
   | "CLOSED";
 
@@ -19,18 +21,37 @@ export type SprintStatus = "PLANNING" | "ACTIVE" | "COMPLETED";
 
 export type MemberRole = "OWNER" | "ADMIN" | "MEMBER";
 
+export type OrganizationRole = "OWNER" | "ADMIN" | "MEMBER";
+
 export type ExecutionStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export type GeneratedCodeStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "REJECTED";
+
+export type GeneratedCodeType =
+  | "INITIAL_EXECUTION"
+  | "PR_COMMENT_RESPONSE"
+  | "REVIEW_RESPONSE";
 
 export type ExecutionStep =
   | "CREATE_BRANCH"
   | "GENERATE_CODE"
+  | "AWAIT_CODE_REVIEW"
   | "COMMIT_FILES"
   | "CREATE_PR"
   | "REQUEST_REVIEWERS"
   | "RESPOND_TO_REVIEW"
   | "MERGE_PR"
   | "ANALYZE_COMMENT"
-  | "RESPOND_TO_COMMENT";
+  | "RESPOND_TO_COMMENT"
+  | "CHECK_CONFLICTS"
+  | "UPDATE_BRANCH"
+  | "RESOLVE_CONFLICTS";
+
+export type LinkType = "BLOCKS" | "RELATES_TO" | "DUPLICATES";
 
 // Comment classification types
 export type CommentIntent = "code_change" | "discussion";
@@ -66,9 +87,45 @@ export interface Project {
   defaultBranch: string;
   reviewers: string[];
   agentModel: string;
+  projectKey: string;
+  taskCounter: number;
   createdAt: Date;
   updatedAt: Date;
+  userId: string | null; // Optional for org projects
+  organizationId: string | null; // Optional for personal projects
+}
+
+// ============= ORGANIZATION/MULTI-TENANCY =============
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrganizationMember {
+  id: string;
+  role: OrganizationRole;
+  createdAt: Date;
+  updatedAt: Date;
+  organizationId: string;
   userId: string;
+}
+
+export interface OrganizationWithMembers extends Organization {
+  members: (OrganizationMember & { user: User })[];
+  _count?: {
+    members: number;
+    projects: number;
+  };
+}
+
+export interface OrganizationMemberWithUser extends OrganizationMember {
+  user: User;
 }
 
 export interface Sprint {
@@ -108,6 +165,8 @@ export interface Task {
   taskType: TaskType;
   storyPoints: number | null;
   dueDate: Date | null;
+  taskNumber: number;
+  taskKey: string;
   branchName: string | null;
   prNumber: number | null;
   prUrl: string | null;
@@ -120,13 +179,32 @@ export interface Task {
   parentTaskId: string | null;
 }
 
+export type CommentType = "COMMENT" | "ACTIVITY";
+
+export interface CommentReaction {
+  id: string;
+  emoji: string;
+  createdAt: Date;
+  commentId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+}
+
 export interface Comment {
   id: string;
   content: string;
+  type?: CommentType;
   isSystem: boolean;
+  metadata?: Record<string, unknown> | null;
   createdAt: Date;
+  updatedAt?: Date;
   taskId: string;
   userId: string | null;
+  reactions?: CommentReaction[];
 }
 
 export interface Execution {
@@ -142,6 +220,23 @@ export interface Execution {
   taskId: string;
 }
 
+export interface GeneratedCode {
+  id: string;
+  files: GeneratedFile[];
+  summary: string;
+  userFeedback: string | null;
+  version: number;
+  status: GeneratedCodeStatus;
+  type: GeneratedCodeType;
+  prCommentId: string | null;
+  prCommentBody: string | null;
+  prCommentAuthor: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  reviewedAt: Date | null;
+  taskId: string;
+}
+
 export interface WebhookEvent {
   id: string;
   eventType: string;
@@ -150,6 +245,100 @@ export interface WebhookEvent {
   processedAt: Date | null;
   error: string | null;
   createdAt: Date;
+}
+
+// Attachment type matching Prisma schema
+export interface Attachment {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  createdAt: Date;
+  taskId: string;
+  uploadedById: string;
+  uploadedBy?: User;
+}
+
+// Task Link types
+export interface TaskLink {
+  id: string;
+  linkType: LinkType;
+  createdAt: Date;
+  sourceTaskId: string;
+  targetTaskId: string;
+  sourceTask?: TaskLinkTask;
+  targetTask?: TaskLinkTask;
+}
+
+export interface TaskLinkTask {
+  id: string;
+  title: string;
+  taskKey: string;
+  status: TaskStatus;
+  taskType: TaskType;
+}
+
+// Board Column types
+export interface BoardColumn {
+  id: TaskStatus;
+  title: string;
+  order: number;
+}
+
+// Default board columns
+export const DEFAULT_BOARD_COLUMNS: BoardColumn[] = [
+  { id: "TODO", title: "To Do", order: 0 },
+  { id: "IN_PROGRESS", title: "In Progress", order: 1 },
+  { id: "IN_REVIEW", title: "In Review", order: 2 },
+  { id: "MERGED", title: "Merged", order: 3 },
+];
+
+// All available statuses for board configuration
+export const ALL_TASK_STATUSES: { id: TaskStatus; title: string }[] = [
+  { id: "BACKLOG", title: "Backlog" },
+  { id: "TODO", title: "To Do" },
+  { id: "IN_PROGRESS", title: "In Progress" },
+  { id: "GENERATING", title: "Generating" },
+  { id: "AWAITING_CODE_REVIEW", title: "Awaiting Code Review" },
+  { id: "PR_OPEN", title: "PR Open" },
+  { id: "IN_REVIEW", title: "In Review" },
+  { id: "CHANGES_REQUESTED", title: "Changes Requested" },
+  { id: "APPROVED", title: "Approved" },
+  { id: "HAS_CONFLICTS", title: "Has Conflicts" },
+  { id: "MERGED", title: "Merged" },
+  { id: "CLOSED", title: "Closed" },
+];
+
+// Saved Filter types
+export interface FilterCriteria {
+  status?: TaskStatus[];
+  priority?: TaskPriority[];
+  assigneeId?: string | null;
+  sprintId?: string | null;
+  labelIds?: string[];
+  taskType?: TaskType[];
+  search?: string;
+  dueBefore?: string;
+  dueAfter?: string;
+  overdue?: boolean;
+  noSprint?: boolean;
+}
+
+export interface SavedFilter {
+  id: string;
+  name: string;
+  filters: FilterCriteria;
+  isShared: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  projectId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
 }
 
 // Extended types with relations
@@ -162,6 +351,8 @@ export type TaskWithRelations = Task & {
   parentTask?: Task | null;
   subtasks?: Task[];
   labels?: Label[];
+  attachments?: Attachment[];
+  conflictInfo?: MergeConflictInfo | null;
 };
 
 export type ProjectWithRelations = Project & {
@@ -225,6 +416,8 @@ export interface GitHubPullRequest {
   html_url: string;
   state: "open" | "closed";
   merged: boolean;
+  mergeable?: boolean | null;
+  mergeable_state?: "clean" | "dirty" | "blocked" | "behind" | "unknown" | "unstable";
   head: {
     ref: string;
     sha: string;
@@ -233,6 +426,32 @@ export interface GitHubPullRequest {
     ref: string;
     sha: string;
   };
+}
+
+// Merge conflict types
+export interface ConflictFile {
+  path: string;
+  conflictMarkers?: string;
+  ourContent?: string;
+  theirContent?: string;
+}
+
+export interface MergeConflictInfo {
+  hasConflicts: boolean;
+  mergeableState: string;
+  conflictingFiles: ConflictFile[];
+  behindByCommits: number;
+  aheadByCommits: number;
+  baseBranch: string;
+  headBranch: string;
+  lastChecked: Date;
+}
+
+export interface ConflictResolutionResult {
+  success: boolean;
+  resolvedFiles: GeneratedFile[];
+  summary: string;
+  error?: string;
 }
 
 export interface GitHubReviewComment {
@@ -295,6 +514,20 @@ export interface HandlePRCommentJob {
   prNumber: number;
   commentId: number;
   commentBody: string;
+  commentAuthor: string;
+}
+
+export interface ContinueExecutionJob {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+}
+
+export interface ContinueCommentResponseJob {
+  taskId: string;
+  userId: string;
+  generatedCodeId: string;
+  prNumber: number;
   commentAuthor: string;
 }
 
@@ -517,3 +750,277 @@ export interface SprintRiskAssessment {
   dependencyGraph: DependencyGraph;
   capacityAnalysis: CapacityAnalysis;
 }
+
+// Workflow types
+export interface WorkflowTransition {
+  from: TaskStatus;
+  to: TaskStatus[];
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  transitions: WorkflowTransition[];
+  initialStatus: TaskStatus;
+  doneStatuses: TaskStatus[];
+}
+
+// Default workflow transitions - allows common status flows
+export const DEFAULT_WORKFLOW: WorkflowDefinition = {
+  id: "default",
+  name: "Default Workflow",
+  description: "Standard development workflow with PR review flow",
+  isDefault: true,
+  initialStatus: "TODO",
+  doneStatuses: ["MERGED", "CLOSED"],
+  transitions: [
+    { from: "BACKLOG", to: ["TODO", "CLOSED"] },
+    { from: "TODO", to: ["IN_PROGRESS", "BACKLOG", "CLOSED"] },
+    { from: "IN_PROGRESS", to: ["TODO", "PR_OPEN", "IN_REVIEW", "CLOSED"] },
+    { from: "GENERATING", to: ["AWAITING_CODE_REVIEW", "IN_PROGRESS", "CLOSED"] },
+    { from: "AWAITING_CODE_REVIEW", to: ["IN_PROGRESS", "PR_OPEN", "CLOSED"] },
+    { from: "PR_OPEN", to: ["IN_REVIEW", "IN_PROGRESS", "CLOSED"] },
+    { from: "IN_REVIEW", to: ["CHANGES_REQUESTED", "APPROVED", "IN_PROGRESS", "CLOSED"] },
+    { from: "CHANGES_REQUESTED", to: ["IN_PROGRESS", "IN_REVIEW", "CLOSED"] },
+    { from: "APPROVED", to: ["MERGED", "IN_REVIEW", "CLOSED"] },
+    { from: "HAS_CONFLICTS", to: ["IN_PROGRESS", "IN_REVIEW", "CLOSED"] },
+    { from: "MERGED", to: ["CLOSED"] },
+    { from: "CLOSED", to: ["BACKLOG", "TODO"] },
+  ],
+};
+
+// Simple workflow - for projects that don't need PR flow
+export const SIMPLE_WORKFLOW: WorkflowDefinition = {
+  id: "simple",
+  name: "Simple Workflow",
+  description: "Basic To Do → In Progress → Done flow",
+  isDefault: false,
+  initialStatus: "TODO",
+  doneStatuses: ["MERGED", "CLOSED"],
+  transitions: [
+    { from: "BACKLOG", to: ["TODO", "CLOSED"] },
+    { from: "TODO", to: ["IN_PROGRESS", "BACKLOG", "CLOSED"] },
+    { from: "IN_PROGRESS", to: ["TODO", "MERGED", "CLOSED"] },
+    { from: "MERGED", to: ["CLOSED"] },
+    { from: "CLOSED", to: ["BACKLOG", "TODO"] },
+  ],
+};
+
+// Kanban workflow - no restrictions
+export const KANBAN_WORKFLOW: WorkflowDefinition = {
+  id: "kanban",
+  name: "Kanban (No Restrictions)",
+  description: "Any status can transition to any other status",
+  isDefault: false,
+  initialStatus: "TODO",
+  doneStatuses: ["MERGED", "CLOSED"],
+  transitions: ALL_TASK_STATUSES.map((status) => ({
+    from: status.id,
+    to: ALL_TASK_STATUSES.filter((s) => s.id !== status.id).map((s) => s.id),
+  })),
+};
+
+// All built-in workflows
+export const BUILT_IN_WORKFLOWS: WorkflowDefinition[] = [
+  DEFAULT_WORKFLOW,
+  SIMPLE_WORKFLOW,
+  KANBAN_WORKFLOW,
+];
+
+// Helper function to get allowed transitions from a status
+export function getAllowedTransitions(
+  workflow: WorkflowDefinition,
+  currentStatus: TaskStatus
+): TaskStatus[] {
+  const transition = workflow.transitions.find((t) => t.from === currentStatus);
+  return transition?.to || [];
+}
+
+// Automation types
+export type AutomationTrigger =
+  | "on_create"
+  | "on_status_change"
+  | "on_assign"
+  | "on_label_add"
+  | "on_label_remove"
+  | "on_comment"
+  | "on_due_date_passed";
+
+export type AutomationAction =
+  | "set_status"
+  | "assign_user"
+  | "add_label"
+  | "remove_label"
+  | "send_notification"
+  | "add_to_sprint";
+
+export interface AutomationCondition {
+  field: "status" | "priority" | "taskType" | "assigneeId" | "labelIds" | "storyPoints";
+  operator: "equals" | "not_equals" | "contains" | "not_contains" | "greater_than" | "less_than" | "is_empty" | "is_not_empty";
+  value: string | string[] | number | null;
+}
+
+export interface AutomationActionConfig {
+  action: AutomationAction;
+  value: string | string[] | null; // status, userId, labelId, etc.
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  trigger: AutomationTrigger;
+  triggerValue?: string; // e.g., specific status for on_status_change
+  conditions: AutomationCondition[];
+  actions: AutomationActionConfig[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============= TIME TRACKING =============
+
+export interface TimeLog {
+  id: string;
+  timeSpent: number; // Time spent in minutes
+  date: Date | string;
+  description: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  taskId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+}
+
+// Helper to format minutes to human readable string
+export function formatTimeSpent(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+// Helper to parse time string like "2h 30m" or "45m" or "3h" to minutes
+export function parseTimeToMinutes(timeStr: string): number | null {
+  const trimmed = timeStr.trim().toLowerCase();
+
+  // Match patterns like "2h 30m", "2h30m", "2h", "30m", "2.5h"
+  const hoursMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*h/);
+  const minutesMatch = trimmed.match(/(\d+)\s*m/);
+
+  let totalMinutes = 0;
+
+  if (hoursMatch) {
+    totalMinutes += parseFloat(hoursMatch[1]) * 60;
+  }
+
+  if (minutesMatch) {
+    totalMinutes += parseInt(minutesMatch[1], 10);
+  }
+
+  // If no match, try parsing as just a number (assume minutes)
+  if (!hoursMatch && !minutesMatch) {
+    const num = parseFloat(trimmed);
+    if (!isNaN(num)) {
+      return Math.round(num);
+    }
+    return null;
+  }
+
+  return Math.round(totalMinutes);
+}
+
+// ============= CUSTOM FIELDS =============
+
+export type CustomFieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
+
+export interface CustomFieldOption {
+  id: string;
+  label: string;
+  color?: string;
+}
+
+export interface CustomFieldDefinition {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  description?: string;
+  required: boolean;
+  options?: CustomFieldOption[]; // For select/multiselect
+  defaultValue?: string | number | boolean | string[];
+  order: number;
+}
+
+export type CustomFieldValue = string | number | boolean | string[] | null;
+
+export interface CustomFieldValues {
+  [fieldId: string]: CustomFieldValue;
+}
+
+// ============= VERSIONS/RELEASES =============
+
+export type VersionStatus = "UNRELEASED" | "RELEASED" | "ARCHIVED";
+
+export interface Version {
+  id: string;
+  name: string;
+  description: string | null;
+  releaseDate: Date | string | null;
+  status: VersionStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  projectId: string;
+  _count?: {
+    tasks: number;
+  };
+}
+
+// ============= ADVANCED SEARCH (JQL-LIKE) =============
+
+export type SearchOperator =
+  | "=" | "!=" | "~" | "!~"  // equals, not equals, contains, not contains
+  | ">" | ">=" | "<" | "<="  // comparison
+  | "in" | "not in"          // list membership
+  | "is" | "is not";         // null checks (is empty, is not empty)
+
+export interface SearchClause {
+  field: string;
+  operator: SearchOperator;
+  value: string | string[] | number | boolean | null;
+}
+
+export type SearchLogicalOperator = "AND" | "OR";
+
+export interface SearchExpression {
+  clauses: SearchClause[];
+  logicalOperator: SearchLogicalOperator;
+  subExpressions?: SearchExpression[];
+}
+
+// Searchable fields mapping
+export const SEARCHABLE_FIELDS: Record<string, { type: "string" | "number" | "date" | "enum" | "array"; enumValues?: string[] }> = {
+  status: { type: "enum", enumValues: ["BACKLOG", "TODO", "IN_PROGRESS", "GENERATING", "AWAITING_CODE_REVIEW", "PR_OPEN", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "HAS_CONFLICTS", "MERGED", "CLOSED"] },
+  priority: { type: "enum", enumValues: ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+  type: { type: "enum", enumValues: ["EPIC", "STORY", "TASK", "SUBTASK", "BUG"] },
+  assignee: { type: "string" },
+  reporter: { type: "string" },
+  sprint: { type: "string" },
+  label: { type: "array" },
+  version: { type: "string" },
+  created: { type: "date" },
+  updated: { type: "date" },
+  due: { type: "date" },
+  storyPoints: { type: "number" },
+  text: { type: "string" }, // Full-text search on title and description
+};

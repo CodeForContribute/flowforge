@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isTaskKey } from "@/lib/task-lookup";
 
 interface RouteParams {
   params: Promise<{ taskId: string }>;
@@ -17,9 +18,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -28,6 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         },
       },
       select: {
+        id: true,
         watchers: {
           where: { id: session.user.id },
           select: { id: true },
@@ -58,10 +65,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify user has access to the task
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -77,7 +89,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Add user to watchers
     await prisma.task.update({
-      where: { id: taskId },
+      where: { id: task.id },
       data: {
         watchers: {
           connect: { id: session.user.id },
@@ -102,10 +114,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Verify user has access to the task
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -121,7 +138,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Remove user from watchers
     await prisma.task.update({
-      where: { id: taskId },
+      where: { id: task.id },
       data: {
         watchers: {
           disconnect: { id: session.user.id },

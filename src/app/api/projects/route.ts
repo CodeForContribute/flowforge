@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validateProjectKey, isProjectKeyAvailable, generateUniqueProjectKey } from "@/lib/project-key";
+import { buildProjectAccessFilter, buildOrgProjectFilter, canManageOrg } from "@/lib/authorization";
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
@@ -11,9 +13,11 @@ const createProjectSchema = z.object({
   defaultBranch: z.string().default("main"),
   reviewers: z.array(z.string()).default([]),
   agentModel: z.string().default("gpt-4o"),
+  projectKey: z.string().optional(), // If not provided, will be auto-generated
+  organizationId: z.string().optional(), // Optional - for org projects
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
@@ -21,11 +25,38 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const organizationId = searchParams.get("organizationId");
+    const personalOnly = searchParams.get("personalOnly") === "true";
+
+    let whereClause;
+
+    if (organizationId) {
+      // Get projects for a specific organization
+      whereClause = buildOrgProjectFilter(session.user.id, organizationId);
+    } else if (personalOnly) {
+      // Get only personal projects (no org)
+      whereClause = {
+        userId: session.user.id,
+        organizationId: null,
+      };
+    } else {
+      // Get all projects the user can access
+      whereClause = buildProjectAccessFilter(session.user.id);
+    }
+
     const projects = await prisma.project.findMany({
-      where: { userId: session.user.id },
+      where: whereClause,
       include: {
         _count: {
           select: { tasks: true },
+        },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
         },
       },
       orderBy: { updatedAt: "desc" },
@@ -49,10 +80,55 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createProjectSchema.parse(body);
 
+    // If creating an org project, verify user has permission
+    if (data.organizationId) {
+      const hasPermission = await canManageOrg(session.user.id, data.organizationId);
+      if (!hasPermission) {
+        return NextResponse.json({ error: "You don't have permission to create projects in this organization" }, { status: 403 });
+      }
+    }
+
+    // Handle project key - validate if provided, or auto-generate
+    let projectKey: string;
+    if (data.projectKey) {
+      // Validate format
+      const validation = validateProjectKey(data.projectKey);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      // Check availability
+      const available = await isProjectKeyAvailable(data.projectKey);
+      if (!available) {
+        return NextResponse.json({ error: "Project key is already in use" }, { status: 400 });
+      }
+      projectKey = data.projectKey;
+    } else {
+      // Auto-generate a unique key from project name
+      projectKey = await generateUniqueProjectKey(data.name);
+    }
+
     const project = await prisma.project.create({
       data: {
-        ...data,
-        userId: session.user.id,
+        name: data.name,
+        description: data.description,
+        githubRepo: data.githubRepo,
+        defaultBranch: data.defaultBranch,
+        reviewers: data.reviewers,
+        agentModel: data.agentModel,
+        projectKey,
+        taskCounter: 0,
+        // For org projects, userId is null; for personal projects, set userId
+        userId: data.organizationId ? null : session.user.id,
+        organizationId: data.organizationId || null,
+      },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
       },
     });
 

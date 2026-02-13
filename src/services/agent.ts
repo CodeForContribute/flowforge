@@ -1,9 +1,17 @@
 import OpenAI from "openai";
 import type { CodeGenerationResult, ReviewResponseResult, GeneratedFile, CommentClassification, DiscussionReplyResult } from "@/types";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors when OPENAI_API_KEY is not set
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 interface GenerateCodeOptions {
   prompt: string;
@@ -13,7 +21,7 @@ interface GenerateCodeOptions {
 export async function generateCode(options: GenerateCodeOptions): Promise<CodeGenerationResult> {
   const { prompt, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -92,7 +100,7 @@ export async function respondToReview(
 ): Promise<ReviewResponseResult> {
   const { prompt, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -163,7 +171,7 @@ export async function classifyComment(
 ): Promise<CommentClassification> {
   const { commentBody, commentAuthor, taskTitle, taskDescription, prContext, model = "gpt-4o" } = options;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 1024,
     messages: [
@@ -263,7 +271,7 @@ export async function generateDiscussionReply(
     ? `\n\n**Relevant Files:**\n${currentFiles.map((f) => `- ${f.path}`).join("\n")}`
     : "";
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 2048,
     messages: [
@@ -338,7 +346,7 @@ export async function generateCodeFromComment(
     .map((f) => `**File: ${f.path}**\n\`\`\`\n${f.content}\n\`\`\``)
     .join("\n\n");
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     max_tokens: 8192,
     messages: [
@@ -399,5 +407,120 @@ Respond with a valid JSON object only.`,
   } catch (error) {
     console.error("Error parsing code generation response:", error);
     throw new Error("Failed to parse code generation response");
+  }
+}
+
+// ============= MERGE CONFLICT RESOLUTION =============
+
+interface ConflictFile {
+  path: string;
+  baseContent: string | null;
+  headContent: string | null;
+}
+
+interface ConflictResolutionResult {
+  success: boolean;
+  resolvedFiles: { path: string; content: string; action: "create" | "update" | "delete" }[];
+  summary: string;
+  error?: string;
+}
+
+export async function generateConflictResolution(
+  taskTitle: string,
+  taskDescription: string,
+  conflicts: ConflictFile[],
+  baseBranch: string,
+  headBranch: string
+): Promise<ConflictResolutionResult> {
+  const conflictDescriptions = conflicts
+    .map((c) => {
+      let desc = `File: ${c.path}\n`;
+      if (c.baseContent && c.headContent) {
+        desc += `Both branches modified this file.\n`;
+        desc += `--- ${baseBranch} (base) ---\n${c.baseContent.substring(0, 2000)}${c.baseContent.length > 2000 ? "\n... (truncated)" : ""}\n`;
+        desc += `--- ${headBranch} (feature) ---\n${c.headContent.substring(0, 2000)}${c.headContent.length > 2000 ? "\n... (truncated)" : ""}\n`;
+      } else if (c.baseContent) {
+        desc += `File exists in ${baseBranch} but was deleted/missing in ${headBranch}\n`;
+        desc += `--- ${baseBranch} ---\n${c.baseContent.substring(0, 2000)}${c.baseContent.length > 2000 ? "\n... (truncated)" : ""}\n`;
+      } else if (c.headContent) {
+        desc += `File created in ${headBranch}, doesn't exist in ${baseBranch}\n`;
+        desc += `--- ${headBranch} ---\n${c.headContent.substring(0, 2000)}${c.headContent.length > 2000 ? "\n... (truncated)" : ""}\n`;
+      }
+      return desc;
+    })
+    .join("\n---\n");
+
+  const systemPrompt = `You are an expert code merge conflict resolver. Your task is to intelligently merge conflicting files while preserving the intent of both changes.
+
+Guidelines:
+1. Understand the purpose of changes in both branches
+2. Combine changes logically - don't just pick one side
+3. Ensure the merged result is syntactically correct
+4. Preserve all functionality from both branches where possible
+5. If changes are truly incompatible, prefer the feature branch (${headBranch}) changes as they represent new work
+6. Add helpful comments if the merge is complex
+
+Respond with JSON in this exact format:
+{
+  "success": true,
+  "resolvedFiles": [
+    {
+      "path": "path/to/file.ts",
+      "content": "full merged file content",
+      "action": "update"
+    }
+  ],
+  "summary": "Brief explanation of how conflicts were resolved"
+}
+
+If you cannot resolve the conflicts, respond with:
+{
+  "success": false,
+  "resolvedFiles": [],
+  "summary": "",
+  "error": "Explanation of why conflicts cannot be auto-resolved"
+}`;
+
+  const userPrompt = `Task: ${taskTitle}
+Description: ${taskDescription}
+
+Please resolve the following merge conflicts between "${baseBranch}" (base) and "${headBranch}" (feature branch):
+
+${conflictDescriptions}
+
+Merge these changes intelligently, preserving the intent of the task while incorporating any necessary changes from the base branch.`;
+
+  try {
+    const response = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 8000,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return {
+        success: false,
+        resolvedFiles: [],
+        summary: "",
+        error: "No response from AI",
+      };
+    }
+
+    // Parse JSON response
+    const result = JSON.parse(content) as ConflictResolutionResult;
+    return result;
+  } catch (error) {
+    console.error("Error generating conflict resolution:", error);
+    return {
+      success: false,
+      resolvedFiles: [],
+      summary: "",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }

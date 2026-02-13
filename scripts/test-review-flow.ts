@@ -54,8 +54,8 @@ async function testReviewFlow() {
   console.log(`  - Repo: ${task.project.githubRepo}`);
 
   // Check if there's an access token
-  if (!task.project.user.accessToken) {
-    console.log("\nERROR: No GitHub access token found for user");
+  if (!task.project.user?.accessToken) {
+    console.log("\nERROR: No GitHub access token found for user (project may be org-owned)");
     await prisma.$disconnect();
     return;
   }

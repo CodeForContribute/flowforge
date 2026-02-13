@@ -32,19 +32,35 @@ export async function getRepoBranches(
   repo: string
 ): Promise<GitHubBranch[]> {
   const octokit = getOctokit(accessToken);
-  const { data } = await octokit.repos.listBranches({
-    owner,
-    repo,
-    per_page: 100,
-  });
 
-  return data.map((branch) => ({
-    name: branch.name,
-    commit: {
-      sha: branch.commit.sha,
-      url: branch.commit.url,
-    },
-  }));
+  // Use pagination to get all branches
+  const branches: GitHubBranch[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const { data } = await octokit.repos.listBranches({
+      owner,
+      repo,
+      per_page: perPage,
+      page,
+    });
+
+    if (data.length === 0) break;
+
+    branches.push(...data.map((branch) => ({
+      name: branch.name,
+      commit: {
+        sha: branch.commit.sha,
+        url: branch.commit.url,
+      },
+    })));
+
+    if (data.length < perPage) break;
+    page++;
+  }
+
+  return branches;
 }
 
 export async function branchExists(
@@ -92,6 +108,21 @@ export async function createBranch(
     repo,
     ref: `refs/heads/${branchName}`,
     sha: ref.object.sha,
+  });
+}
+
+export async function deleteBranch(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branchName: string
+): Promise<void> {
+  const octokit = getOctokit(accessToken);
+
+  await octokit.git.deleteRef({
+    owner,
+    repo,
+    ref: `heads/${branchName}`,
   });
 }
 
@@ -543,4 +574,213 @@ export async function getPRSummary(
     mergedBy: pr.merged_by?.login || null,
     mergedAt: pr.merged_at,
   };
+}
+
+// ============= MERGE CONFLICT HANDLING =============
+
+export interface MergeStatus {
+  mergeable: boolean | null;
+  mergeableState: string;
+  behindBy: number;
+  aheadBy: number;
+  hasConflicts: boolean;
+}
+
+/**
+ * Check if a PR has merge conflicts
+ */
+export async function checkPRMergeStatus(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<MergeStatus> {
+  const octokit = getOctokit(accessToken);
+
+  // Get PR details - need to fetch twice as mergeable may be null on first request
+  let pr = await octokit.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
+
+  // If mergeable is null, GitHub is still computing - wait and retry
+  if (pr.data.mergeable === null) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    pr = await octokit.pulls.get({
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+  }
+
+  // Get comparison to see how far behind/ahead
+  const comparison = await octokit.repos.compareCommits({
+    owner,
+    repo,
+    base: pr.data.base.ref,
+    head: pr.data.head.ref,
+  });
+
+  return {
+    mergeable: pr.data.mergeable,
+    mergeableState: pr.data.mergeable_state || "unknown",
+    behindBy: comparison.data.behind_by,
+    aheadBy: comparison.data.ahead_by,
+    hasConflicts: pr.data.mergeable === false || pr.data.mergeable_state === "dirty",
+  };
+}
+
+export interface ConflictingFile {
+  path: string;
+  status: string;
+}
+
+/**
+ * Get list of files with conflicts (files that changed in both branches)
+ */
+export async function getConflictingFiles(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<ConflictingFile[]> {
+  const octokit = getOctokit(accessToken);
+
+  // Get PR to find branches
+  const { data: pr } = await octokit.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
+
+  // Get files changed in PR
+  const { data: prFiles } = await octokit.pulls.listFiles({
+    owner,
+    repo,
+    pull_number: prNumber,
+    per_page: 100,
+  });
+
+  // Get commits on base branch since the PR branch diverged
+  const { data: comparison } = await octokit.repos.compareCommits({
+    owner,
+    repo,
+    base: pr.head.sha,
+    head: pr.base.ref,
+  });
+
+  // Find files that changed in both
+  const prFilePaths = new Set(prFiles.map((f) => f.filename));
+  const baseChangedFiles = comparison.files?.map((f) => f.filename) || [];
+
+  const conflictingFiles: ConflictingFile[] = [];
+  for (const path of baseChangedFiles) {
+    if (prFilePaths.has(path)) {
+      conflictingFiles.push({ path, status: "both_modified" });
+    }
+  }
+
+  return conflictingFiles;
+}
+
+/**
+ * Update PR branch by merging base branch into it
+ */
+export async function updatePRBranch(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<{ success: boolean; message: string; sha?: string }> {
+  const octokit = getOctokit(accessToken);
+
+  try {
+    const { data } = await octokit.pulls.updateBranch({
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+
+    return {
+      success: true,
+      message: data.message || "Branch updated successfully",
+      sha: (data as { sha?: string }).sha,
+    };
+  } catch (error) {
+    // If automatic update fails due to conflicts, return error
+    const message = error instanceof Error ? error.message : "Failed to update branch";
+    return {
+      success: false,
+      message: message.includes("merge conflict")
+        ? "Cannot auto-update: merge conflicts must be resolved manually or with AI"
+        : message,
+    };
+  }
+}
+
+
+/**
+ * Get content of conflicting files from both branches for AI resolution
+ */
+export async function getConflictDetails(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<{
+  baseBranch: string;
+  headBranch: string;
+  conflicts: Array<{
+    path: string;
+    baseContent: string | null;
+    headContent: string | null;
+  }>;
+}> {
+  const octokit = getOctokit(accessToken);
+
+  // Get PR details
+  const { data: pr } = await octokit.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
+
+  const baseBranch = pr.base.ref;
+  const headBranch = pr.head.ref;
+
+  // Get conflicting files
+  const conflictingFiles = await getConflictingFiles(accessToken, owner, repo, prNumber);
+
+  // Get content from both branches for each conflicting file
+  const conflicts = await Promise.all(
+    conflictingFiles.map(async (file) => {
+      const [baseContent, headContent] = await Promise.all([
+        getFileContent(accessToken, owner, repo, file.path, baseBranch),
+        getFileContent(accessToken, owner, repo, file.path, headBranch),
+      ]);
+
+      return {
+        path: file.path,
+        baseContent,
+        headContent,
+      };
+    })
+  );
+
+  return {
+    baseBranch,
+    headBranch,
+    conflicts,
+  };
+}
+
+export function handleMergeConflict(conflicts: any[]) {
+  if (conflicts.length === 0) {
+    return 'No conflicts detected.';
+  }
+
+  return conflicts.map(conflict => {
+    return `Conflict: ${conflict.title}\nFile: ${conflict.filePath}\n${conflict.conflictingSections.map((section: { start: number; end: number }) => `Lines ${section.start} to ${section.end}`).join('\n')}\n`;
+  }).join('\n');
 }

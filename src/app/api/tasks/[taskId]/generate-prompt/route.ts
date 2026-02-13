@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateImplementationPrompt } from "@/services/prompt-generator";
+import { isTaskKey } from "@/lib/task-lookup";
 
 interface RouteParams {
   params: Promise<{ taskId: string }>;
@@ -17,10 +18,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Build where clause based on identifier type (cuid or taskKey)
+    const whereClause = isTaskKey(taskId)
+      ? { taskKey: taskId }
+      : { id: taskId };
+
     // Get task with project, parent task, and sprint info
     const task = await prisma.task.findFirst({
       where: {
-        id: taskId,
+        ...whereClause,
         project: {
           OR: [
             { userId: session.user.id },
@@ -64,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Save the prompt to the task
     await prisma.task.update({
-      where: { id: taskId },
+      where: { id: task.id },
       data: { generatedPrompt: prompt },
     });
 

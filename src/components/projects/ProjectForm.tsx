@@ -27,6 +27,7 @@ interface ProjectFormProps {
     defaultBranch: string;
     reviewers: string[];
     agentModel: string;
+    projectKey?: string;
   };
 }
 
@@ -42,7 +43,23 @@ export function ProjectForm({ mode, initialData }: ProjectFormProps) {
     defaultBranch: initialData?.defaultBranch || "main",
     reviewers: initialData?.reviewers?.join(", ") || "",
     agentModel: initialData?.agentModel || "gpt-4o",
+    projectKey: initialData?.projectKey || "",
   });
+
+  // Auto-generate project key from name
+  function generateKeyFromName(name: string): string {
+    const words = name.trim().split(/\s+/);
+    let key = words
+      .map((word) => word.charAt(0))
+      .join("")
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "");
+    if (key.length < 2) {
+      key = name.replace(/[^a-zA-Z]/g, "").substring(0, 4).toUpperCase();
+    }
+    if (key.length < 2) key = "PR";
+    return key.substring(0, 10);
+  }
 
   useEffect(() => {
     async function fetchRepos() {
@@ -74,8 +91,13 @@ export function ProjectForm({ mode, initialData }: ProjectFormProps) {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          description: formData.description || undefined,
+          githubRepo: formData.githubRepo,
+          defaultBranch: formData.defaultBranch,
+          agentModel: formData.agentModel,
           reviewers: formData.reviewers.split(",").map((r) => r.trim()).filter(Boolean),
+          ...(mode === "create" && formData.projectKey && { projectKey: formData.projectKey }),
         }),
       });
 
@@ -152,11 +174,38 @@ export function ProjectForm({ mode, initialData }: ProjectFormProps) {
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => {
+                const newName = e.target.value;
+                setFormData({
+                  ...formData,
+                  name: newName,
+                  // Auto-generate project key if not manually set (only in create mode)
+                  ...(mode === "create" && !formData.projectKey && {
+                    projectKey: generateKeyFromName(newName),
+                  }),
+                });
+              }}
               placeholder="My Awesome Project"
               required
             />
           </div>
+
+          {mode === "create" && (
+            <div className="space-y-2">
+              <Label htmlFor="projectKey">Project Key</Label>
+              <Input
+                id="projectKey"
+                value={formData.projectKey}
+                onChange={(e) => setFormData({ ...formData, projectKey: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").substring(0, 10) })}
+                placeholder="MP"
+                maxLength={10}
+                className="uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                2-10 uppercase letters used for task IDs (e.g., {formData.projectKey || "MP"}-1, {formData.projectKey || "MP"}-2)
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="description">Description (optional)</Label>

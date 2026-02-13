@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { generateNextTaskKey } from "@/lib/task-lookup";
+import { executeAutomations, buildTaskContext } from "@/services/automation";
 
 const createTaskSchema = z.object({
   projectId: z.string(),
@@ -17,6 +19,7 @@ const createTaskSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   sprintId: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  baseBranch: z.string().nullable().optional(),
   labelIds: z.array(z.string()).optional(),
 });
 
@@ -204,6 +207,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Generate the next task key atomically
+    const { taskNumber, taskKey } = await generateNextTaskKey(data.projectId);
+
     const task = await prisma.task.create({
       data: {
         title: data.title,
@@ -213,10 +219,13 @@ export async function POST(request: NextRequest) {
         taskType: data.taskType,
         storyPoints: data.storyPoints ?? undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        baseBranch: data.baseBranch || undefined,
         projectId: data.projectId,
         assigneeId: data.assigneeId || undefined,
         sprintId: data.sprintId || undefined,
         parentTaskId: data.parentTaskId || undefined,
+        taskNumber,
+        taskKey,
         ...(data.labelIds && data.labelIds.length > 0 && {
           labels: { connect: data.labelIds.map((id) => ({ id })) },
         }),
@@ -228,6 +237,15 @@ export async function POST(request: NextRequest) {
         labels: true,
       },
     });
+
+    // Execute automations for on_create trigger (async, non-blocking)
+    executeAutomations(
+      buildTaskContext({
+        ...task,
+        labels: task.labels,
+      }),
+      { trigger: "on_create" }
+    ).catch((err) => console.error("Automation execution failed:", err));
 
     return NextResponse.json({ task }, { status: 201 });
   } catch (error) {

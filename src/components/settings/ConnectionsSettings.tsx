@@ -19,17 +19,6 @@ interface ConnectionsSettingsProps {
   scopes: string[];
 }
 
-// Map of GitHub OAuth scopes to user-friendly descriptions
-const scopeDescriptions: Record<string, { name: string; description: string }> = {
-  "read:user": { name: "Read user profile", description: "Access your public profile information" },
-  "user:email": { name: "Read user email", description: "Access your email addresses" },
-  "repo": { name: "Full repository access", description: "Read and write access to all repositories" },
-  "public_repo": { name: "Public repository access", description: "Read and write access to public repositories" },
-  "write:repo_hook": { name: "Repository webhooks", description: "Create and manage repository webhooks" },
-  "read:org": { name: "Read organization", description: "Read organization membership" },
-  "workflow": { name: "GitHub Actions", description: "Update GitHub Action workflows" },
-};
-
 // Standard permissions that FlowForge typically needs
 const standardPermissions = [
   { name: "Read user profile", description: "Access your public profile information", scope: "read:user" },

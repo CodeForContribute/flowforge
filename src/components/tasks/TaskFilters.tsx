@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Search,
   Filter,
@@ -27,8 +44,14 @@ import {
   Tag,
   Layers,
   Target,
+  Bookmark,
+  BookmarkPlus,
+  Trash2,
+  Share2,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
-import { TaskStatus, TaskPriority, TaskType, SprintStatus, MemberRole } from "@/types";
+import { TaskStatus, TaskPriority, TaskType, SprintStatus, MemberRole, SavedFilter, FilterCriteria } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface Label {
@@ -96,6 +119,34 @@ const statuses: TaskStatus[] = [
   "CLOSED",
 ];
 
+// Convert FilterState to FilterCriteria for saving
+function filterStateToFilterCriteria(state: FilterState): FilterCriteria {
+  return {
+    status: state.status ? [state.status] : undefined,
+    priority: state.priority ? [state.priority] : undefined,
+    assigneeId: state.assignee,
+    sprintId: state.sprint,
+    labelIds: state.labels.length > 0 ? state.labels : undefined,
+    taskType: state.type ? [state.type] : undefined,
+    search: state.search || undefined,
+    overdue: state.overdue || undefined,
+  };
+}
+
+// Convert FilterCriteria to FilterState for applying
+function filterCriteriaToFilterState(criteria: FilterCriteria): FilterState {
+  return {
+    search: criteria.search || "",
+    assignee: criteria.assigneeId ?? null,
+    sprint: criteria.sprintId ?? null,
+    labels: criteria.labelIds || [],
+    type: criteria.taskType?.[0] || null,
+    status: criteria.status?.[0] || null,
+    priority: criteria.priority?.[0] || null,
+    overdue: criteria.overdue || false,
+  };
+}
+
 export function TaskFilters({ projectId, onFiltersChange }: TaskFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,6 +167,15 @@ export function TaskFilters({ projectId, onFiltersChange }: TaskFiltersProps) {
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Saved filters state
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [filterName, setFilterName] = useState("");
+  const [isShared, setIsShared] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   // Fetch filter options
   useEffect(() => {
@@ -147,6 +207,87 @@ export function TaskFilters({ projectId, onFiltersChange }: TaskFiltersProps) {
     fetchData();
   }, [projectId]);
 
+  // Fetch saved filters
+  const fetchSavedFilters = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/filters`);
+      if (res.ok) {
+        const data = await res.json();
+        setSavedFilters(data.filters);
+      }
+    } catch (error) {
+      console.error("Error fetching saved filters:", error);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchSavedFilters();
+  }, [fetchSavedFilters]);
+
+  // Save current filter
+  async function saveFilter() {
+    if (!filterName.trim()) return;
+    setIsSaving(true);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/filters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: filterName.trim(),
+          filters: filterStateToFilterCriteria(filters),
+          isShared,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSavedFilters((prev) => [...prev, data.filter]);
+        setActiveFilterId(data.filter.id);
+        setShowSaveDialog(false);
+        setFilterName("");
+        setIsShared(false);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to save filter");
+      }
+    } catch (error) {
+      console.error("Error saving filter:", error);
+      alert("Failed to save filter");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Delete a saved filter
+  async function deleteFilter(filterId: string) {
+    setIsDeleting(filterId);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/filters/${filterId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setSavedFilters((prev) => prev.filter((f) => f.id !== filterId));
+        if (activeFilterId === filterId) {
+          setActiveFilterId(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting filter:", error);
+    } finally {
+      setIsDeleting(null);
+    }
+  }
+
+  // Apply a saved filter
+  function applyFilter(filter: SavedFilter) {
+    const newFilters = filterCriteriaToFilterState(filter.filters);
+    setFilters(newFilters);
+    setActiveFilterId(filter.id);
+  }
+
   // Update URL and notify parent when filters change
   useEffect(() => {
     const params = new URLSearchParams();
@@ -172,6 +313,7 @@ export function TaskFilters({ projectId, onFiltersChange }: TaskFiltersProps) {
 
   function clearFilters() {
     setFilters(defaultFilters);
+    setActiveFilterId(null);
   }
 
   function toggleLabel(labelId: string) {
@@ -223,11 +365,161 @@ export function TaskFilters({ projectId, onFiltersChange }: TaskFiltersProps) {
           )}
         </Button>
 
+        {/* Saved Filters Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Bookmark className="h-4 w-4" />
+              {activeFilterId ? (
+                <span className="max-w-[120px] truncate">
+                  {savedFilters.find((f) => f.id === activeFilterId)?.name || "Saved"}
+                </span>
+              ) : (
+                "Saved Filters"
+              )}
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            {savedFilters.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                <Bookmark className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>No saved filters yet</p>
+                <p className="text-xs mt-1">Save your current filter to quickly access it later</p>
+              </div>
+            ) : (
+              <>
+                {savedFilters.map((filter) => (
+                  <div
+                    key={filter.id}
+                    className={cn(
+                      "flex items-center justify-between px-2 py-1.5 rounded-md group",
+                      activeFilterId === filter.id && "bg-accent"
+                    )}
+                  >
+                    <button
+                      className="flex-1 flex items-center gap-2 text-left text-sm"
+                      onClick={() => applyFilter(filter)}
+                    >
+                      <Bookmark
+                        className={cn(
+                          "h-3.5 w-3.5",
+                          activeFilterId === filter.id
+                            ? "text-primary fill-primary"
+                            : "text-muted-foreground"
+                        )}
+                      />
+                      <span className="truncate">{filter.name}</span>
+                      {filter.isShared && (
+                        <Share2 className="h-3 w-3 text-muted-foreground" />
+                      )}
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteFilter(filter.id);
+                      }}
+                      disabled={isDeleting === filter.id}
+                    >
+                      {isDeleting === filter.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setShowSaveDialog(true)}
+              disabled={activeFilterCount === 0}
+              className="gap-2"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              Save Current Filter
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {activeFilterCount > 0 && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear all
           </Button>
         )}
+
+        {/* Save Filter Dialog */}
+        <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Save Filter</DialogTitle>
+              <DialogDescription>
+                Save your current filter configuration for quick access later.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="filter-name">Filter Name</Label>
+                <Input
+                  id="filter-name"
+                  placeholder="e.g., My urgent bugs"
+                  value={filterName}
+                  onChange={(e) => setFilterName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && filterName.trim()) {
+                      saveFilter();
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="shared">Share with team</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Team members can see and use this filter
+                  </p>
+                </div>
+                <Switch
+                  id="shared"
+                  checked={isShared}
+                  onCheckedChange={setIsShared}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSaveDialog(false);
+                  setFilterName("");
+                  setIsShared(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={saveFilter}
+                disabled={!filterName.trim() || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="h-4 w-4 mr-2" />
+                    Save Filter
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Active Filters Display */}
