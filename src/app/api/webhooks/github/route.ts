@@ -8,7 +8,7 @@ import {
   notifyPRMerged,
   notifyReviewRequested,
 } from "@/services/notifications";
-import { getPRSummary, type PRSummary } from "@/services/github";
+import { getPRSummary, getWorkflowRunsAfterMerge, type PRSummary, type WorkflowRunStatus } from "@/services/github";
 import { parseGitHubRepo } from "@/lib/utils";
 
 // Verify GitHub webhook signature
@@ -328,6 +328,18 @@ async function handlePullRequest(body: Record<string, unknown>): Promise<void> {
         }
       }
 
+      // Fetch CI/CD build status in background and post as comment
+      if (repoInfo && accessToken) {
+        fetchAndPostCIStatus(
+          accessToken,
+          repoInfo.owner,
+          repoInfo.repo,
+          pullRequest.merge_commit_sha as string | undefined,
+          task.id,
+          prNumber
+        ).catch((err) => console.error("Failed to fetch CI/CD status:", err));
+      }
+
       // Send notification for PR merged
       if (task.project.userId) {
         await notifyPRMerged(task.project.userId, {
@@ -484,4 +496,94 @@ async function handleIssueComment(body: Record<string, unknown>): Promise<void> 
   });
 
   console.log(`Queued PR comment handling for task ${task.id}: comment #${commentId} by @${commentAuthor}`);
+}
+
+/**
+ * Fetch GitHub Actions workflow runs after a merge and post build status as a task comment.
+ * Runs in the background with retries since workflows take a moment to trigger.
+ */
+async function fetchAndPostCIStatus(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  mergeCommitSha: string | undefined,
+  taskId: string,
+  prNumber: number
+): Promise<void> {
+  if (!mergeCommitSha) {
+    console.log(`No merge commit SHA for PR #${prNumber}, skipping CI/CD status`);
+    return;
+  }
+
+  // Wait for workflows to be triggered and get initial status
+  const runs = await getWorkflowRunsAfterMerge(accessToken, owner, repo, mergeCommitSha);
+
+  if (runs.length === 0) {
+    console.log(`No workflow runs found for merge commit ${mergeCommitSha}`);
+    return;
+  }
+
+  const buildComment = formatCIStatusComment(runs, prNumber, mergeCommitSha);
+
+  await prisma.comment.create({
+    data: {
+      taskId,
+      content: buildComment,
+      type: "ACTIVITY",
+      isSystem: true,
+      metadata: {
+        type: "ci_status",
+        prNumber,
+        mergeCommitSha,
+        workflows: runs.map((r) => ({
+          name: r.name,
+          status: r.status,
+          conclusion: r.conclusion,
+          url: r.html_url,
+        })),
+      } as Prisma.InputJsonValue,
+    },
+  });
+
+  console.log(`CI/CD status comment posted for task ${taskId} (${runs.length} workflows)`);
+}
+
+function formatCIStatusComment(runs: WorkflowRunStatus[], prNumber: number, commitSha: string): string {
+  const activities: { icon: string; label: string; detail?: string }[] = [];
+
+  activities.push({
+    icon: "build",
+    label: "CI/CD Pipeline",
+    detail: `PR #${prNumber} · ${commitSha.substring(0, 7)}`,
+  });
+
+  for (const run of runs) {
+    const statusEmoji = getWorkflowStatusIcon(run.status, run.conclusion);
+    activities.push({
+      icon: "build",
+      label: `${statusEmoji} ${run.name}`,
+      detail: run.conclusion || run.status,
+    });
+  }
+
+  return JSON.stringify({
+    type: "activity_summary",
+    title: "CI/CD Build Status",
+    activities,
+  });
+}
+
+function getWorkflowStatusIcon(status: string, conclusion: string | null): string {
+  if (status === "completed") {
+    switch (conclusion) {
+      case "success": return "\u2705";
+      case "failure": return "\u274C";
+      case "cancelled": return "\u23F9\uFE0F";
+      case "skipped": return "\u23ED\uFE0F";
+      default: return "\u2753";
+    }
+  }
+  if (status === "in_progress") return "\u23F3";
+  if (status === "queued" || status === "waiting") return "\u23F8\uFE0F";
+  return "\u2B55";
 }

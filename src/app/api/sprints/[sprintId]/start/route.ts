@@ -59,10 +59,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const sprint = await prisma.sprint.update({
-      where: { id: sprintId },
-      data: { status: "ACTIVE" },
-    });
+    const [sprint] = await prisma.$transaction([
+      prisma.sprint.update({
+        where: { id: sprintId },
+        data: { status: "ACTIVE" },
+      }),
+      prisma.task.updateMany({
+        where: {
+          sprintId: sprintId,
+          status: "BACKLOG",
+        },
+        data: { status: "TODO" },
+      }),
+    ]);
 
     return NextResponse.json({ sprint });
   } catch (error) {

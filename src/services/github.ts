@@ -576,6 +576,70 @@ export async function getPRSummary(
   };
 }
 
+// ============= CI/CD STATUS =============
+
+export interface WorkflowRunStatus {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  html_url: string;
+  run_started_at: string | null;
+  updated_at: string;
+}
+
+/**
+ * Get GitHub Actions workflow runs for a specific commit SHA
+ */
+export async function getWorkflowRunsForCommit(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  commitSha: string
+): Promise<WorkflowRunStatus[]> {
+  const octokit = getOctokit(accessToken);
+
+  const { data } = await octokit.actions.listWorkflowRunsForRepo({
+    owner,
+    repo,
+    head_sha: commitSha,
+    per_page: 20,
+  });
+
+  return data.workflow_runs.map((run) => ({
+    id: run.id,
+    name: run.name || "Workflow",
+    status: run.status || "unknown",
+    conclusion: run.conclusion || null,
+    html_url: run.html_url,
+    run_started_at: run.run_started_at || null,
+    updated_at: run.updated_at,
+  }));
+}
+
+/**
+ * Get GitHub Actions workflow runs for a merge commit on the default branch
+ * Polls with retries since workflow runs may not appear immediately after merge
+ */
+export async function getWorkflowRunsAfterMerge(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  mergeCommitSha: string,
+  maxRetries: number = 5,
+  delayMs: number = 5000
+): Promise<WorkflowRunStatus[]> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const runs = await getWorkflowRunsForCommit(accessToken, owner, repo, mergeCommitSha);
+    if (runs.length > 0) {
+      return runs;
+    }
+    // Wait before retrying - workflows take a moment to trigger
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return [];
+}
+
 // ============= MERGE CONFLICT HANDLING =============
 
 export interface MergeStatus {
@@ -775,7 +839,7 @@ export async function getConflictDetails(
   };
 }
 
-export function handleMergeConflict(conflicts: any[]) {
+export function handleMergeConflict(conflicts: { title: string; filePath: string; conflictingSections: { start: number; end: number }[] }[]) {
   if (conflicts.length === 0) {
     return 'No conflicts detected.';
   }

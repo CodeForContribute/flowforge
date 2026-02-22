@@ -164,8 +164,11 @@ Please implement this task following these guidelines:
 2. **Follow existing conventions** for code style, naming, and organization
 3. **Create or modify files** as needed to implement the requested feature
 4. **Include appropriate error handling** and edge cases
-5. **Add necessary tests** if the project has a testing framework
-6. **Update documentation** if relevant
+5. **Write tests for every newly added or modified line of code** using the project's existing testing framework and conventions
+6. **Fix all currently failing tests** in any files you modify
+7. **Fix all SonarQube linting issues** (code smells, bugs, vulnerabilities, security hotspots) in your changes
+8. **Ensure overall test coverage remains >= 80%** — add tests to cover any gaps introduced by your changes
+9. **Update documentation** if relevant
 
 ### Response Format
 

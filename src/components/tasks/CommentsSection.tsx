@@ -36,6 +36,7 @@ import {
   GitPullRequest,
   Code,
   Users,
+  Workflow,
   Check,
   X,
   CheckCircle2,
@@ -84,6 +85,7 @@ const ACTIVITY_ICONS: Record<string, typeof GitBranch> = {
   commit: GitCommit,
   pr: GitPullRequest,
   review: Users,
+  build: Workflow,
 };
 
 // Parse activity summary from JSON content

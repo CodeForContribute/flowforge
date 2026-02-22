@@ -19,7 +19,7 @@ export default async function DashboardLayout({
   const projects = await prisma.project.findMany({
     where: { userId: session.user.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, projectKey: true },
   });
 
   return (

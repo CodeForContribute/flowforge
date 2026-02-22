@@ -17,13 +17,11 @@ import {
   FileX,
   Copy,
   Check,
+  Pencil,
+  Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GeneratedFile } from "@/types";
-
-interface GeneratedFileCardProps {
-  file: GeneratedFile;
-}
 
 const actionConfig = {
   create: {
@@ -83,9 +81,16 @@ function getLanguageFromExtension(ext: string): string {
   return map[ext.toLowerCase()] || ext || "text";
 }
 
-export function GeneratedFileCard({ file }: GeneratedFileCardProps) {
+interface GeneratedFileCardProps {
+  file: GeneratedFile;
+  onContentChange?: (path: string, newContent: string) => void;
+}
+
+export function GeneratedFileCard({ file, onContentChange }: GeneratedFileCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(file.content);
 
   const config = actionConfig[file.action];
   const ActionIcon = config.icon;
@@ -93,10 +98,25 @@ export function GeneratedFileCard({ file }: GeneratedFileCardProps) {
   const language = getLanguageFromExtension(ext);
   const lineCount = file.content.split("\n").length;
 
+  const currentContent = isEditing ? editedContent : file.content;
+
   async function handleCopy() {
-    await navigator.clipboard.writeText(file.content);
+    await navigator.clipboard.writeText(currentContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleToggleEdit() {
+    if (isEditing) {
+      // Save edits
+      onContentChange?.(file.path, editedContent);
+    }
+    setIsEditing(!isEditing);
+  }
+
+  function handleResetContent() {
+    setEditedContent(file.content);
+    onContentChange?.(file.path, file.content);
   }
 
   return (
@@ -135,40 +155,92 @@ export function GeneratedFileCard({ file }: GeneratedFileCardProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900 dark:bg-zinc-800/50">
               <span className="text-xs text-zinc-400 font-mono">{language}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-                onClick={handleCopy}
-              >
-                {copied ? (
+              <div className="flex items-center gap-1">
+                {file.action !== "delete" && (
                   <>
-                    <Check className="h-3 w-3 mr-1" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy
+                    {isEditing && editedContent !== file.content && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                        onClick={handleResetContent}
+                      >
+                        <Undo2 className="h-3 w-3 mr-1" />
+                        Reset
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-2 text-xs hover:bg-zinc-800",
+                        isEditing
+                          ? "text-amber-400 hover:text-amber-300"
+                          : "text-zinc-400 hover:text-zinc-200"
+                      )}
+                      onClick={handleToggleEdit}
+                    >
+                      {isEditing ? (
+                        <>
+                          <Check className="h-3 w-3 mr-1" />
+                          Done
+                        </>
+                      ) : (
+                        <>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit
+                        </>
+                      )}
+                    </Button>
                   </>
                 )}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                  onClick={handleCopy}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Code content */}
-            <div className="overflow-x-auto max-h-[400px]">
-              <pre className="p-4 text-sm">
-                <code className="text-zinc-200 font-mono whitespace-pre">
-                  {file.action === "delete" ? (
-                    <span className="text-red-400 italic">
-                      This file will be deleted
-                    </span>
-                  ) : (
-                    file.content
-                  )}
-                </code>
-              </pre>
-            </div>
+            {file.action === "delete" ? (
+              <div className="p-4">
+                <span className="text-red-400 italic text-sm font-mono">
+                  This file will be deleted
+                </span>
+              </div>
+            ) : isEditing ? (
+              <textarea
+                value={editedContent}
+                onChange={(e) => {
+                  setEditedContent(e.target.value);
+                  onContentChange?.(file.path, e.target.value);
+                }}
+                className="w-full min-h-[200px] max-h-[400px] p-4 text-sm text-zinc-200 font-mono bg-transparent border-none outline-none resize-y"
+                spellCheck={false}
+              />
+            ) : (
+              <div className="overflow-x-auto max-h-[400px]">
+                <pre className="p-4 text-sm">
+                  <code className="text-zinc-200 font-mono whitespace-pre">
+                    {currentContent}
+                  </code>
+                </pre>
+              </div>
+            )}
           </div>
         </div>
       </CollapsibleContent>

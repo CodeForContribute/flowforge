@@ -52,6 +52,7 @@ export function CodeReviewPanel({ taskId }: CodeReviewPanelProps) {
   const [isRejecting, setIsRejecting] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [editedFiles, setEditedFiles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function fetchGeneratedCode() {
@@ -77,17 +78,32 @@ export function CodeReviewPanel({ taskId }: CodeReviewPanelProps) {
     fetchGeneratedCode();
   }, [taskId]);
 
+  function handleFileContentChange(path: string, newContent: string) {
+    setEditedFiles((prev) => ({ ...prev, [path]: newContent }));
+  }
+
   async function handleApprove() {
     if (!generatedCode) return;
 
     setIsApproving(true);
     try {
+      // Build updated files array if any edits were made
+      const hasEdits = Object.keys(editedFiles).length > 0;
+      const updatedFiles = hasEdits
+        ? generatedCode.files.map((file) =>
+            editedFiles[file.path] !== undefined
+              ? { ...file, content: editedFiles[file.path] }
+              : file
+          )
+        : undefined;
+
       const response = await fetch(`/api/tasks/${taskId}/code-review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "approve",
           generatedCodeId: generatedCode.id,
+          updatedFiles,
         }),
       });
 
@@ -231,7 +247,10 @@ export function CodeReviewPanel({ taskId }: CodeReviewPanelProps) {
           <div>
             <h4 className="text-sm font-medium mb-3 text-muted-foreground">Generated Files</h4>
             <ScrollArea className="h-[400px] rounded-lg border bg-background">
-              <GeneratedFilesList files={generatedCode.files} />
+              <GeneratedFilesList
+                files={generatedCode.files}
+                onFileContentChange={handleFileContentChange}
+              />
             </ScrollArea>
           </div>
 

@@ -10,11 +10,18 @@ interface RouteParams {
   params: Promise<{ taskId: string }>;
 }
 
+interface GeneratedFile {
+  path: string;
+  content: string;
+  action: "create" | "update" | "delete";
+}
+
 interface CodeReviewRequest {
   action: "approve" | "request_changes" | "reject";
   generatedCodeId: string;
   feedback?: string;
   deleteBranch?: boolean;
+  updatedFiles?: GeneratedFile[];
 }
 
 /**
@@ -31,7 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body: CodeReviewRequest = await request.json();
-    const { action, generatedCodeId, feedback, deleteBranch } = body;
+    const { action, generatedCodeId, feedback, deleteBranch, updatedFiles } = body;
 
     if (!action || !generatedCodeId) {
       return NextResponse.json(
@@ -101,12 +108,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     switch (action) {
       case "approve": {
-        // Update generated code status to APPROVED
+        // Update generated code status to APPROVED, with edited files if provided
         await prisma.generatedCode.update({
           where: { id: generatedCodeId },
           data: {
             status: "APPROVED",
             reviewedAt: new Date(),
+            ...(updatedFiles ? { files: updatedFiles } : {}),
           },
         });
 

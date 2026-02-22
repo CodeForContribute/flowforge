@@ -34,6 +34,10 @@ When implementing features:
 2. Write clean, maintainable, and well-documented code
 3. Include appropriate error handling
 4. Keep changes focused and minimal
+5. Write tests for each newly added or modified line of code
+6. Fix all currently failing tests in files you touch
+7. Fix all SonarQube linting issues (code smells, bugs, vulnerabilities) in your changes
+8. Ensure the overall test coverage of the project remains >= 80%
 
 Always respond with a valid JSON object in the format specified in the prompt. Do not include any text before or after the JSON.`,
       },
