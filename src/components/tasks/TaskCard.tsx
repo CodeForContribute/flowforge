@@ -52,6 +52,7 @@ interface TaskCardProps {
     };
   };
   projectKey?: string;
+  aiEnabled?: boolean;
 }
 
 const priorityColors: Record<TaskPriority, string> = {
@@ -61,7 +62,7 @@ const priorityColors: Record<TaskPriority, string> = {
   URGENT: "bg-red-500",
 };
 
-export function TaskCard({ task, projectKey }: TaskCardProps) {
+export function TaskCard({ task, projectKey, aiEnabled }: TaskCardProps) {
   const router = useRouter();
   const {
     attributes,
@@ -247,6 +248,7 @@ export function TaskCard({ task, projectKey }: TaskCardProps) {
                 taskId={task.id}
                 currentStoryPoints={task.storyPoints ?? null}
                 compact={true}
+                aiEnabled={aiEnabled}
                 onEstimateApplied={() => router.refresh()}
               />
             )}

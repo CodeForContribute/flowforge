@@ -108,6 +108,13 @@ export default async function TaskPage({ params }: TaskPageProps) {
     },
   };
 
+  // Check if AI is enabled for this project
+  const aiSettings = await prisma.projectAISettings.findUnique({
+    where: { projectId: task.projectId },
+    select: { aiEnabled: true },
+  });
+  const aiEnabled = aiSettings?.aiEnabled ?? false;
+
   const projects = await prisma.project.findMany({
     where: {
       OR: [
@@ -125,7 +132,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar projects={projects} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">
-          <TaskDetail task={taskWithTypedConflictInfo} currentUserId={session.user.id} />
+          <TaskDetail task={taskWithTypedConflictInfo} currentUserId={session.user.id} aiEnabled={aiEnabled} />
         </main>
       </div>
     </div>

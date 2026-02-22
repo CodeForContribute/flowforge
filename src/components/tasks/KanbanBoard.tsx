@@ -39,7 +39,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, User, LayoutGrid, X, ChevronDown, Zap, Layers, ArrowUpDown, AlertTriangle, GitPullRequest, Clock, Flame } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Users, User, LayoutGrid, X, ChevronDown, Zap, Layers, ArrowUpDown, AlertTriangle, GitPullRequest, Clock, Flame, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { isPast, isToday } from "date-fns";
@@ -72,6 +79,7 @@ interface Task {
   taskType?: TaskType;
   storyPoints?: number | null;
   dueDate?: Date | string | null;
+  sprintId?: string | null;
   prNumber: number | null;
   prUrl: string | null;
   projectId: string;
@@ -102,13 +110,22 @@ interface Member {
   image: string | null;
 }
 
+interface Sprint {
+  id: string;
+  name: string;
+  status: "PLANNING" | "ACTIVE" | "COMPLETED";
+}
+
 interface KanbanBoardProps {
   tasks: Task[];
   projectId: string;
   projectKey: string;
+  sprints?: Sprint[];
+  defaultSprintId?: string | null;
   wipLimits?: WipLimits;
   members?: Member[];
   boardColumns?: BoardColumn[] | null;
+  aiEnabled?: boolean;
 }
 
 interface WipWarningState {
@@ -120,10 +137,11 @@ interface WipWarningState {
   limit: number;
 }
 
-export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLimits = {}, members = [], boardColumns }: KanbanBoardProps) {
+export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, sprints = [], defaultSprintId, wipLimits = {}, members = [], boardColumns, aiEnabled }: KanbanBoardProps) {
   const { data: session } = useSession();
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [selectedSprint, setSelectedSprint] = useState<string>(defaultSprintId ?? "all");
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<GroupByMode>("none");
   const [wipWarning, setWipWarning] = useState<WipWarningState | null>(null);
@@ -172,9 +190,16 @@ export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLim
     });
   }, [members]);
 
-  // Get filtered tasks based on selected assignee and quick filters
+  // Get filtered tasks based on selected sprint, assignee, and quick filters
   const filteredTasks = useMemo(() => {
     let result = tasks;
+
+    // Sprint filter
+    if (selectedSprint === "backlog") {
+      result = result.filter((t) => !t.sprintId);
+    } else if (selectedSprint !== "all") {
+      result = result.filter((t) => t.sprintId === selectedSprint);
+    }
 
     // Assignee filter
     if (selectedAssignee) {
@@ -207,7 +232,7 @@ export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLim
     }
 
     return result;
-  }, [tasks, selectedAssignee, quickFilters, session?.user?.id]);
+  }, [tasks, selectedSprint, selectedAssignee, quickFilters, session?.user?.id]);
 
   // Group tasks based on groupBy mode
   const groupedTasks = useMemo(() => {
@@ -546,6 +571,40 @@ export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLim
           </Button>
         )}
 
+        {/* Sprint Filter */}
+        {sprints.length > 0 && (
+          <Select value={selectedSprint} onValueChange={setSelectedSprint}>
+            <SelectTrigger className="h-8 w-[180px] text-sm">
+              <Target className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="All Tasks" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              {sprints.map((sprint) => (
+                <SelectItem key={sprint.id} value={sprint.id}>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        sprint.status === "ACTIVE" && "bg-green-500",
+                        sprint.status === "PLANNING" && "bg-slate-400",
+                        sprint.status === "COMPLETED" && "bg-blue-500"
+                      )}
+                    />
+                    {sprint.name}
+                  </span>
+                </SelectItem>
+              ))}
+              <SelectItem value="backlog">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-gray-300" />
+                  Backlog
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
         {/* Separator */}
         <div className="h-6 w-px bg-border" />
 
@@ -717,6 +776,7 @@ export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLim
                         tasks={getTasksByStatus(column.id, group.tasks)}
                         projectKey={projectKey}
                         wipLimit={wipLimits[column.id]}
+                        aiEnabled={aiEnabled}
                         compact
                       />
                     ))}
@@ -744,6 +804,7 @@ export function KanbanBoard({ tasks: initialTasks, projectId, projectKey, wipLim
                   tasks={getTasksByStatus(column.id)}
                   projectKey={projectKey}
                   wipLimit={wipLimits[column.id]}
+                  aiEnabled={aiEnabled}
                 />
               ))}
             </div>

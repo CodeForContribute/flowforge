@@ -16,6 +16,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sparkles,
   Loader2,
   TrendingUp,
@@ -98,11 +103,13 @@ interface SprintRetrospective {
 interface AIRetroViewProps {
   sprintId: string;
   sprintName: string;
+  aiEnabled?: boolean;
 }
 
 export function AIRetroView({
   sprintId,
   sprintName,
+  aiEnabled = true,
 }: AIRetroViewProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -188,6 +195,24 @@ export function AIRetroView({
         return "bg-gray-500/10 text-gray-600";
     }
   };
+
+  if (!aiEnabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>
+            <Button variant="outline" disabled className="gap-2 opacity-50 cursor-not-allowed">
+              <Sparkles className="h-4 w-4" />
+              AI Retrospective
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p>AI Retrospective generates insights from sprint data including achievements, challenges, and action items. Enable AI in project settings to use this feature.</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -125,6 +125,7 @@ type TaskWithRelations = Task & {
 interface TaskDetailProps {
   task: TaskWithRelations;
   currentUserId: string;
+  aiEnabled?: boolean;
 }
 
 const priorityColors: Record<TaskPriority, string> = {
@@ -145,7 +146,7 @@ const priorityGradients: Record<TaskPriority, string> = {
 const ACTIVE_STATUSES = ["GENERATING", "AWAITING_CODE_REVIEW", "PR_OPEN", "IN_REVIEW", "CHANGES_REQUESTED"];
 const POLL_INTERVAL = 5000;
 
-export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
+export function TaskDetail({ task, currentUserId, aiEnabled = true }: TaskDetailProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -685,23 +686,45 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
-                onClick={handleGeneratePrompt}
-                disabled={isGenerating}
-                data-tour-id="generate-prompt-button"
-              >
-                {isGenerating ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                {task.generatedPrompt ? "Regenerate Prompt" : "Generate Prompt"}
-              </Button>
+              {aiEnabled ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={handleGeneratePrompt}
+                  disabled={isGenerating}
+                  data-tour-id="generate-prompt-button"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  {task.generatedPrompt ? "Regenerate Prompt" : "Generate Prompt"}
+                </Button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start opacity-50 cursor-not-allowed"
+                        disabled
+                        data-tour-id="generate-prompt-button"
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate Prompt
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Generate Prompt uses AI to create an implementation prompt for this task. Enable AI in project settings to use this feature.</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
 
-              {canExecute && (
+              {aiEnabled && canExecute && (
                 <Button
                   variant="gradient"
                   size="sm"
@@ -717,6 +740,28 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                   )}
                   Execute Task
                 </Button>
+              )}
+
+              {!aiEnabled && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start opacity-50 cursor-not-allowed"
+                        disabled
+                        data-tour-id="execute-button"
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Execute Task
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Execute Task uses AI to automatically generate code and create a pull request. Enable AI in project settings to use this feature.</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
 
               <Separator className="my-2" />
@@ -782,6 +827,7 @@ export function TaskDetail({ task, currentUserId }: TaskDetailProps) {
                     <AIEstimateBadge
                       taskId={task.id}
                       currentStoryPoints={task.storyPoints}
+                      aiEnabled={aiEnabled}
                       onEstimateApplied={() => router.refresh()}
                     />
                   </div>

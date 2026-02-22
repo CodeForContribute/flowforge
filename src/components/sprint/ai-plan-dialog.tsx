@@ -18,6 +18,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sparkles,
   Loader2,
   AlertTriangle,
@@ -72,6 +77,7 @@ interface AIPlanDialogProps {
   sprintName: string;
   sprintStatus: string;
   teamMembers?: TeamMember[];
+  aiEnabled?: boolean;
   onPlanApplied?: () => void;
 }
 
@@ -80,6 +86,7 @@ export function AIPlanDialog({
   sprintName,
   sprintStatus,
   teamMembers = [],
+  aiEnabled = true,
   onPlanApplied,
 }: AIPlanDialogProps) {
   const router = useRouter();
@@ -203,6 +210,24 @@ export function AIPlanDialog({
         .filter((t) => selectedTasks.has(t.taskId))
         .reduce((sum, t) => sum + (t.storyPoints || 0), 0)
     : 0;
+
+  if (!aiEnabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>
+            <Button variant="outline" disabled className="gap-2 opacity-50 cursor-not-allowed">
+              <Sparkles className="h-4 w-4" />
+              AI Plan
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p>AI Plan uses AI to analyze your backlog and suggest optimal task selection based on team capacity and velocity. Enable AI in project settings to use this feature.</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

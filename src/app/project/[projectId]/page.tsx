@@ -78,6 +78,22 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
+  // Fetch sprints for the project
+  const sprints = await prisma.sprint.findMany({
+    where: { projectId: project.id },
+    select: { id: true, name: true, status: true },
+    orderBy: { startDate: "desc" },
+  });
+
+  const activeSprint = sprints.find((s) => s.status === "ACTIVE");
+
+  // Check if AI is enabled for this project
+  const aiSettings = await prisma.projectAISettings.findUnique({
+    where: { projectId: project.id },
+    select: { aiEnabled: true },
+  });
+  const aiEnabled = aiSettings?.aiEnabled ?? false;
+
   const projects = await prisma.project.findMany({
     where: {
       OR: [
@@ -158,8 +174,11 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 ...task,
                 projectId: project.id,
               }))}
+              sprints={sprints}
+              defaultSprintId={activeSprint?.id ?? null}
               wipLimits={(project.wipLimits as Record<string, number>) || {}}
               boardColumns={(project.boardColumns as unknown as BoardColumn[]) || null}
+              aiEnabled={aiEnabled}
               members={[
                 // Include project owner (if personal project)
                 ...(project.user ? [{ id: project.user.id, name: project.user.name, image: project.user.image }] : []),

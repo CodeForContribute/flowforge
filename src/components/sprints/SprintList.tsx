@@ -40,10 +40,11 @@ interface Sprint {
 interface SprintListProps {
   sprints: Sprint[];
   projectKey?: string;
+  aiEnabled?: boolean;
   onCreateSprint?: () => void;
 }
 
-export function SprintList({ sprints, projectKey, onCreateSprint }: SprintListProps) {
+export function SprintList({ sprints, projectKey, aiEnabled, onCreateSprint }: SprintListProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Sprint | null>(null);
@@ -131,6 +132,7 @@ export function SprintList({ sprints, projectKey, onCreateSprint }: SprintListPr
             <SprintCard
               sprint={sprint}
               projectKey={projectKey}
+              aiEnabled={aiEnabled}
               onStart={() => handleStart(sprint.id)}
               onComplete={() => handleComplete(sprint.id)}
               onDelete={() => setDeleteConfirm(sprint)}

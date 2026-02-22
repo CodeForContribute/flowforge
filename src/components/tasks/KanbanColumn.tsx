@@ -28,6 +28,7 @@ interface KanbanColumnProps {
   projectKey: string;
   wipLimit?: number;
   compact?: boolean;
+  aiEnabled?: boolean;
 }
 
 const columnStyles: Record<TaskStatus, {
@@ -84,7 +85,7 @@ const columnStyles: Record<TaskStatus, {
   },
 };
 
-export function KanbanColumn({ id, title, tasks, projectKey, wipLimit, compact = false }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, tasks, projectKey, wipLimit, compact = false, aiEnabled }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -140,7 +141,7 @@ export function KanbanColumn({ id, title, tasks, projectKey, wipLimit, compact =
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} projectKey={projectKey} />
+              <TaskCard key={task.id} task={task} projectKey={projectKey} aiEnabled={aiEnabled} />
             ))}
             {tasks.length === 0 && (
               <div className={cn(

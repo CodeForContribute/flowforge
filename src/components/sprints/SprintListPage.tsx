@@ -29,9 +29,10 @@ interface SprintListPageProps {
   sprints: Sprint[];
   projectId: string;
   projectKey?: string;
+  aiEnabled?: boolean;
 }
 
-export function SprintListPage({ sprints, projectId, projectKey }: SprintListPageProps) {
+export function SprintListPage({ sprints, projectId, projectKey, aiEnabled }: SprintListPageProps) {
   const [showForm, setShowForm] = useState(false);
 
   // Prepare data for velocity chart
@@ -59,6 +60,7 @@ export function SprintListPage({ sprints, projectId, projectKey }: SprintListPag
       <SprintList
         sprints={sprints}
         projectKey={projectKey}
+        aiEnabled={aiEnabled}
         onCreateSprint={() => setShowForm(true)}
       />
 

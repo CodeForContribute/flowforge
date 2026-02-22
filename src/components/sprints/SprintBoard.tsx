@@ -81,6 +81,7 @@ interface SprintBoardProps {
   projectKey?: string;
   sprintTasks: Task[];
   backlogTasks: Task[];
+  aiEnabled?: boolean;
 }
 
 function DroppableColumn({
@@ -122,6 +123,7 @@ export function SprintBoard({
   sprint,
   sprintTasks: initialSprintTasks,
   backlogTasks: initialBacklogTasks,
+  aiEnabled,
 }: SprintBoardProps) {
   const router = useRouter();
   const [sprintTasks, setSprintTasks] = useState(initialSprintTasks);
@@ -258,6 +260,7 @@ export function SprintBoard({
                             sprintId={sprint.id}
                             sprintName={sprint.name}
                             sprintStatus={sprint.status}
+                            aiEnabled={aiEnabled}
                           />
                         </div>
                       </TooltipTrigger>
@@ -287,6 +290,7 @@ export function SprintBoard({
                             <RiskDashboard
                               sprintId={sprint.id}
                               sprintName={sprint.name}
+                              aiEnabled={aiEnabled}
                             />
                           </div>
                         </TooltipTrigger>
@@ -317,6 +321,7 @@ export function SprintBoard({
                             <AIRetroView
                               sprintId={sprint.id}
                               sprintName={sprint.name}
+                              aiEnabled={aiEnabled}
                             />
                           </div>
                         </TooltipTrigger>

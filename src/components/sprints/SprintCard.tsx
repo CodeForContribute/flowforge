@@ -49,6 +49,7 @@ interface SprintCardProps {
     stats: SprintStats;
   };
   projectKey?: string;
+  aiEnabled?: boolean;
   onStart?: () => void;
   onComplete?: () => void;
   onDelete?: () => void;
@@ -60,7 +61,7 @@ const statusConfig: Record<SprintStatus, { label: string; variant: "default" | "
   COMPLETED: { label: "Completed", variant: "outline", icon: CheckCircle2 },
 };
 
-export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }: SprintCardProps) {
+export function SprintCard({ sprint, projectKey, aiEnabled, onStart, onComplete, onDelete }: SprintCardProps) {
   const config = statusConfig[sprint.status];
   const StatusIcon = config.icon;
   const startDate = new Date(sprint.startDate);
@@ -99,6 +100,7 @@ export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }
                       sprintId={sprint.id}
                       sprintName={sprint.name}
                       sprintStatus={sprint.status}
+                      aiEnabled={aiEnabled}
                     />
                   </div>
                 </TooltipTrigger>
@@ -115,6 +117,7 @@ export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }
                     <RiskDashboard
                       sprintId={sprint.id}
                       sprintName={sprint.name}
+                      aiEnabled={aiEnabled}
                     />
                   </div>
                 </TooltipTrigger>
@@ -131,6 +134,7 @@ export function SprintCard({ sprint, projectKey, onStart, onComplete, onDelete }
                     <AIRetroView
                       sprintId={sprint.id}
                       sprintName={sprint.name}
+                      aiEnabled={aiEnabled}
                     />
                   </div>
                 </TooltipTrigger>

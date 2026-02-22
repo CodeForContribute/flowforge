@@ -12,6 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sparkles,
   Loader2,
   Clock,
@@ -57,6 +62,7 @@ interface AIEstimateBadgeProps {
   taskId: string;
   currentStoryPoints: number | null;
   compact?: boolean;
+  aiEnabled?: boolean;
   onEstimateApplied?: (points: number) => void;
 }
 
@@ -64,6 +70,7 @@ export function AIEstimateBadge({
   taskId,
   currentStoryPoints,
   compact = false,
+  aiEnabled = true,
   onEstimateApplied,
 }: AIEstimateBadgeProps) {
   const router = useRouter();
@@ -151,6 +158,31 @@ export function AIEstimateBadge({
         return 50;
     }
   };
+
+  if (!aiEnabled) {
+    const disabledButton = (
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn("gap-1 opacity-50 cursor-not-allowed", compact ? "h-6 px-2 text-xs" : "gap-2")}
+        disabled
+      >
+        <Sparkles className={compact ? "h-3 w-3" : "h-4 w-4"} />
+        {compact ? "AI" : "AI Estimate"}
+      </Button>
+    );
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>{disabledButton}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p>AI Estimate uses AI to analyze task complexity and suggest story points. Enable AI in project settings to use this feature.</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   if (compact) {
     return (

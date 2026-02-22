@@ -82,6 +82,13 @@ export default async function SprintPage({ params }: SprintPageProps) {
     };
   });
 
+  // Check if AI is enabled for this project
+  const aiSettings = await prisma.projectAISettings.findUnique({
+    where: { projectId: project.id },
+    select: { aiEnabled: true },
+  });
+  const aiEnabled = aiSettings?.aiEnabled ?? false;
+
   const projects = await prisma.project.findMany({
     where: {
       OR: [
@@ -117,7 +124,7 @@ export default async function SprintPage({ params }: SprintPageProps) {
             </div>
           </header>
           <main className="flex-1 overflow-auto p-6">
-            <SprintListPage sprints={sprintsWithStats} projectId={project.id} projectKey={project.projectKey} />
+            <SprintListPage sprints={sprintsWithStats} projectId={project.id} projectKey={project.projectKey} aiEnabled={aiEnabled} />
           </main>
         </div>
       </div>

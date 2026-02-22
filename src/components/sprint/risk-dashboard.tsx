@@ -16,6 +16,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertTriangle,
   Loader2,
   Shield,
@@ -102,9 +107,10 @@ interface SprintRiskAssessment {
 interface RiskDashboardProps {
   sprintId: string;
   sprintName: string;
+  aiEnabled?: boolean;
 }
 
-export function RiskDashboard({ sprintId, sprintName }: RiskDashboardProps) {
+export function RiskDashboard({ sprintId, sprintName, aiEnabled = true }: RiskDashboardProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [assessment, setAssessment] = useState<SprintRiskAssessment | null>(null);
@@ -186,6 +192,24 @@ export function RiskDashboard({ sprintId, sprintName }: RiskDashboardProps) {
     if (probability >= 40) return "text-orange-500";
     return "text-red-500";
   };
+
+  if (!aiEnabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>
+            <Button variant="outline" disabled className="gap-2 opacity-50 cursor-not-allowed">
+              <AlertTriangle className="h-4 w-4" />
+              Risk Assessment
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p>Risk Assessment uses AI to analyze sprint risks, dependencies, and success probability. Enable AI in project settings to use this feature.</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
