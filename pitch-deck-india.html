@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowForge — Investor Deck (India)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --fg: #0f172a;
+    --fg-muted: #475569;
+    --fg-light: #94a3b8;
+    --bg: #ffffff;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --accent-bg: #eef2ff;
+    --success: #10b981;
+    --success-bg: #f0fdf4;
+    --orange: #f59e0b;
+    --orange-bg: #fffbeb;
+    --red: #ef4444;
+    --border: #e2e8f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--fg);
+    background: #f1f5f9;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- Page / Print layout ---- */
+  .page {
+    width: 210mm; min-height: 297mm;
+    margin: 20px auto; padding: 36px 40px;
+    background: var(--bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .page {
+      margin: 0; padding: 28px 32px;
+      box-shadow: none;
+      width: 100%; min-height: auto;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: avoid; }
+    .no-print { display: none !important; }
+  }
+
+  /* ---- Typography ---- */
+  h1 { font-size: 32px; font-weight: 800; line-height: 1.15; letter-spacing: -1px; }
+  h2 { font-size: 20px; font-weight: 800; line-height: 1.2; letter-spacing: -0.3px; color: var(--fg); }
+  h3 { font-size: 14px; font-weight: 700; line-height: 1.3; }
+  h4 { font-size: 12px; font-weight: 700; }
+  p { font-size: 12px; line-height: 1.55; color: var(--fg-muted); }
+
+  .section-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--accent); margin-bottom: 6px;
+  }
+
+  /* ---- Header bar ---- */
+  .page-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 12px; border-bottom: 2px solid var(--fg);
+    margin-bottom: 20px;
+  }
+  .page-header .logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .page-header .logo span { color: var(--accent); }
+  .page-header .meta { font-size: 10px; color: var(--fg-light); font-weight: 500; }
+
+  /* ---- Footer ---- */
+  .page-footer {
+    position: absolute; bottom: 20px; left: 40px; right: 40px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 9px; color: var(--fg-light); border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+
+  /* ---- Grid helpers ---- */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  .gap-8 { gap: 8px; }
+  .gap-20 { gap: 20px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-12 { margin-top: 12px; }
+  .mt-16 { margin-top: 16px; }
+  .mt-20 { margin-top: 20px; }
+
+  /* ---- Cards ---- */
+  .card {
+    background: #f8fafc; border-radius: 10px; padding: 14px 16px;
+    border: 1px solid var(--border);
+  }
+  .card h4 { margin-bottom: 4px; }
+  .card p { font-size: 11px; }
+
+  .card-accent {
+    background: var(--accent-bg); border-color: #c7d2fe;
+  }
+  .card-success {
+    background: var(--success-bg); border-color: #bbf7d0;
+  }
+  .card-orange {
+    background: var(--orange-bg); border-color: #fed7aa;
+  }
+  .card-red {
+    background: #fef2f2; border-color: #fecaca;
+  }
+
+  /* ---- Stat boxes ---- */
+  .stat {
+    text-align: center; padding: 12px 8px;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: #f8fafc;
+  }
+  .stat .num {
+    font-size: 28px; font-weight: 800; color: var(--accent);
+    letter-spacing: -1px; line-height: 1;
+  }
+  .stat .label { font-size: 10px; color: var(--fg-muted); margin-top: 4px; font-weight: 500; line-height: 1.3; }
+
+  /* ---- Table ---- */
+  .comp-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .comp-table th {
+    text-align: left; padding: 8px 10px; font-weight: 700; font-size: 10px;
+    border-bottom: 2px solid var(--border); color: var(--fg-muted);
+  }
+  .comp-table th.hl { color: var(--accent); }
+  .comp-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--fg-muted); }
+  .comp-table tr:last-child td { border-bottom: none; }
+  .comp-table td:first-child { font-weight: 600; color: var(--fg); }
+  .ck { color: var(--success); font-weight: 700; }
+  .cx { color: #cbd5e1; }
+  .pt { color: var(--orange); font-weight: 600; }
+  .hl-col { background: var(--accent-bg); }
+
+  /* ---- Flow diagram ---- */
+  .flow {
+    display: flex; align-items: center; gap: 6px;
+    justify-content: center; margin: 12px 0;
+  }
+  .flow-step {
+    background: var(--accent-bg); border: 1px solid #c7d2fe;
+    border-radius: 8px; padding: 8px 12px; text-align: center;
+    flex: 1; max-width: 120px;
+  }
+  .flow-step .icon { font-size: 16px; }
+  .flow-step h4 { font-size: 10px; color: var(--accent); margin-top: 2px; }
+  .flow-arrow { color: #c7d2fe; font-size: 14px; flex-shrink: 0; }
+
+  /* ---- Pricing ---- */
+  .price-card {
+    border-radius: 10px; padding: 14px 16px;
+    border: 1px solid var(--border); background: #fff;
+  }
+  .price-card.featured { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .price-card .tier { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-muted); }
+  .price-card .price { font-size: 24px; font-weight: 800; margin: 4px 0; }
+  .price-card .price span { font-size: 11px; font-weight: 500; color: var(--fg-muted); }
+  .price-card ul { list-style: none; margin-top: 8px; }
+  .price-card li { font-size: 10px; padding: 2px 0; color: var(--fg-muted); }
+  .price-card li::before { content: '✓ '; color: var(--success); font-weight: 700; }
+
+  /* ---- Bullet list ---- */
+  .blist { list-style: none; }
+  .blist li {
+    font-size: 11px; color: var(--fg-muted); padding: 3px 0 3px 16px;
+    position: relative; line-height: 1.5;
+  }
+  .blist li::before {
+    content: ''; position: absolute; left: 0; top: 9px;
+    width: 6px; height: 6px; border-radius: 2px; background: var(--accent);
+  }
+
+  /* ---- Timeline ---- */
+  .tl-item { display: flex; gap: 10px; padding-bottom: 12px; position: relative; }
+  .tl-item:not(:last-child)::after {
+    content: ''; position: absolute; left: 11px; top: 24px;
+    width: 1.5px; bottom: 0; background: var(--border);
+  }
+  .tl-dot {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .tl-dot.done { background: #d1fae5; border: 1.5px solid var(--success); color: var(--success); }
+  .tl-dot.now { background: #dbeafe; border: 1.5px solid #3b82f6; color: #3b82f6; }
+  .tl-dot.next { background: #fef3c7; border: 1.5px solid var(--orange); color: var(--orange); }
+  .tl-content h4 { font-size: 11px; }
+  .tl-content p { font-size: 10px; margin-top: 1px; }
+
+  /* ---- India callout ---- */
+  .india-callout {
+    background: linear-gradient(135deg, #fff7ed, #fef3c7);
+    border: 1px solid #fed7aa; border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .india-callout h4 { font-size: 12px; color: #92400e; }
+  .india-callout p { font-size: 11px; color: #b45309; }
+
+  /* ---- Key metrics row ---- */
+  .metric-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-row .ml { color: var(--fg-muted); }
+  .metric-row .mv { font-weight: 700; color: var(--fg); }
+
+  /* ---- Hero section (page 1) ---- */
+  .hero {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    border-radius: 14px; padding: 32px 36px; color: #fff;
+    margin-bottom: 20px; position: relative; overflow: hidden;
+  }
+  .hero::after {
+    content: ''; position: absolute; top: -40px; right: -40px;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(99,102,241,.15);
+  }
+  .hero h1 { color: #fff; font-size: 28px; margin-bottom: 8px; }
+  .hero p { color: rgba(255,255,255,.6); font-size: 13px; max-width: 480px; }
+  .hero .badge {
+    display: inline-block; margin-top: 12px; padding: 4px 14px;
+    border-radius: 100px; background: rgba(99,102,241,.2);
+    border: 1px solid rgba(99,102,241,.3);
+    color: var(--accent-light); font-size: 11px; font-weight: 600;
+  }
+
+  /* ---- Divider ---- */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  /* Print hint */
+  .print-hint {
+    text-align: center; padding: 12px; font-size: 12px;
+    color: var(--fg-light); background: #fff;
+    margin: 0 auto 10px; max-width: 210mm;
+    border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="print-hint no-print">Tip: Press Ctrl+P / Cmd+P to save as PDF. Set margins to "None" for best results.</div>
+
+<!-- ======================================================================
+     PAGE 1 — Cover + Problem + Solution
+     ====================================================================== -->
+<div class="page">
+  <div class="page-header">
+    <div class="logo">Flow<span>Forge</span></div>
+    <div class="meta">Confidential | Seed Round | March 2026</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Ship Software Faster with<br>AI-Powered Project Management</h1>
+    <p>The first PM platform that doesn't just track work — it does the work. AI code generation, GitHub integration, and smart sprint planning in one workflow.</p>
+    <div class="badge">Raising ₹20 Cr (~$2.5M) Seed Round</div>
+  </div>
+
+  <!-- Problem -->
+  <div class="section-label">The Problem</div>
+  <h2>Engineering teams lose 23% of their time to tooling overhead</h2>
+  <div class="grid-3 mt-8">
+    <div class="card card-red">
+      <h4 style="color:#991b1b;">Tool Fragmentation</h4>
+      <p style="color:#b91c1c;">Teams juggle 5-7 tools — Jira, GitHub, Slack, CI/CD — losing hours daily to context switching.</p>
+    </div>
+    <div class="card card-red">
+      <h4 style="color:#991b1b;">Slow PR Cycles</h4>
+      <p style="color:#b91c1c;">Average PR sits open 4.5 days. Code reviews bottleneck delivery. Junior devs wait days for feedback.</p>
+    </div>
+    <div class="card card-red">
+      <h4 style="color:#991b1b;">Planning Theater</h4>
+      <p style="color:#b91c1c;">Sprint planning takes hours, estimates are guesswork, retrospectives produce the same action items.</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Solution -->
+  <div class="section-label">The Solution</div>
+  <h2>One platform that plans, codes, reviews, and ships</h2>
+  <p class="mt-8" style="max-width:520px;">FlowForge replaces the fragmented toolchain with an AI-native workflow automating the entire SDLC — from task creation to merged PR.</p>
+
+  <div class="flow">
+    <div class="flow-step"><div class="icon">📝</div><h4>Create Task</h4></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="icon">🤖</div><h4>AI Codes</h4></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="icon">👀</div><h4>Human Reviews</h4></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="icon">💬</div><h4>AI Responds</h4></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="icon">🚀</div><h4>Ship It</h4></div>
+  </div>
+
+  <div class="grid-2 gap-8">
+    <div class="card">
+      <h4>AI Code Generation</h4>
+      <p>Generates production-ready code from task descriptions — including tests, error handling, and PR creation. Supports OpenAI GPT-4o and Anthropic Claude.</p>
+    </div>
+    <div class="card">
+      <h4>Deep GitHub Integration</h4>
+      <p>Auto-creates branches and PRs, processes webhooks in real-time, tracks CI/CD status, and syncs bidirectionally with repositories.</p>
+    </div>
+    <div class="card">
+      <h4>AI Sprint Planning</h4>
+      <p>Intelligent story point estimation, risk assessment, dependency detection, and automatic retrospective generation from sprint data.</p>
+    </div>
+    <div class="card">
+      <h4>Smart Review Handling</h4>
+      <p>AI classifies review comments as code changes vs. discussions, generates contextual responses, and updates code based on feedback.</p>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>FlowForge — Confidential</span>
+    <span>Page 1 of 4</span>
+  </div>
+</div>
+
+<!-- ======================================================================
+     PAGE 2 — Market + Competition + India Angle
+     ====================================================================== -->
+<div class="page">
+  <div class="page-header">
+    <div class="logo">Flow<span>Forge</span></div>
+    <div class="meta">Market Opportunity & Competitive Landscape</div>
+  </div>
+
+  <div class="section-label">Market Opportunity</div>
+  <h2>A massive global market — with India as a unique wedge</h2>
+
+  <div class="grid-4 mt-12">
+    <div class="stat">
+      <div class="num">$85B</div>
+      <div class="label">Project Management<br>TAM (Global)</div>
+    </div>
+    <div class="stat">
+      <div class="num">$22B</div>
+      <div class="label">Developer Tools<br>SAM</div>
+    </div>
+    <div class="stat">
+      <div class="num">$4.5B</div>
+      <div class="label">AI-Powered DevTools<br>SOM (Target)</div>
+    </div>
+    <div class="stat">
+      <div class="num">28M+</div>
+      <div class="label">Professional Developers<br>Worldwide</div>
+    </div>
+  </div>
+
+  <div class="india-callout mt-12">
+    <h4>India Advantage</h4>
+    <p class="mt-8">India has <strong>5.8M+ developers</strong> (2nd largest globally) and 1,600+ GCCs employing 1.9M+ tech professionals. Indian IT services ($250B+) are under pressure to adopt AI-native tooling. FlowForge is built in India with <strong>3-4x capital efficiency</strong> vs. US peers — the same playbook that built Freshworks ($12B), Postman ($5.6B), and Zoho into global SaaS leaders. Our target: land with India's fast-growing startup ecosystem, then expand globally via GitHub's developer network.</p>
+  </div>
+
+  <div class="grid-2 mt-16 gap-20">
+    <div>
+      <div class="section-label">Target Customers</div>
+      <div class="card mt-8" style="margin-bottom:8px;">
+        <h4>Primary: Startups & SMBs (India + Global)</h4>
+        <p>5-50 person engineering teams on GitHub. Fast adopters of AI. <strong>ACV: ₹50K-3L/yr.</strong></p>
+      </div>
+      <div class="card" style="margin-bottom:8px;">
+        <h4>Secondary: GCCs & Mid-Market</h4>
+        <p>50-500 engineers in India's 1,600+ GCCs looking to consolidate tools. <strong>ACV: ₹40L-1.5Cr/yr.</strong></p>
+      </div>
+      <div class="card">
+        <h4>Expansion: Enterprise / IT Services</h4>
+        <p>Large-scale deployments with SSO, on-prem, SLA guarantees. <strong>ACV: ₹1.5Cr+/yr.</strong></p>
+      </div>
+
+      <div class="card card-accent mt-12">
+        <h4 style="color:var(--accent);">Why Now?</h4>
+        <p>LLMs crossed the production-code-quality threshold in 2025. AI coding tools (Copilot, Cursor) normalized AI-assisted development. But no tool connects task management → code generation → review → deployment. FlowForge is first to close this loop.</p>
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Competitive Landscape</div>
+      <table class="comp-table mt-8">
+        <thead>
+          <tr>
+            <th style="width:130px;">Capability</th>
+            <th class="hl hl-col">FlowForge</th>
+            <th>Jira</th>
+            <th>Linear</th>
+            <th>Copilot</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Task & Sprint Mgmt</td>
+            <td class="ck hl-col">✓ Full</td>
+            <td class="ck">✓ Full</td>
+            <td class="ck">✓ Full</td>
+            <td class="cx">✗</td>
+          </tr>
+          <tr>
+            <td>AI Code Generation</td>
+            <td class="ck hl-col">✓ Full</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="pt">Inline</td>
+          </tr>
+          <tr>
+            <td>Auto PR Creation</td>
+            <td class="ck hl-col">✓ Full</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+          </tr>
+          <tr>
+            <td>AI Review Response</td>
+            <td class="ck hl-col">✓ Full</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+          </tr>
+          <tr>
+            <td>AI Sprint Planning</td>
+            <td class="ck hl-col">✓ Full</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+          </tr>
+          <tr>
+            <td>GitHub Integration</td>
+            <td class="ck hl-col">✓ Native</td>
+            <td class="pt">Plugin</td>
+            <td class="ck">✓ Good</td>
+            <td class="ck">✓ Native</td>
+          </tr>
+          <tr>
+            <td>Task→Code→PR Loop</td>
+            <td class="ck hl-col">✓ E2E</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+          </tr>
+          <tr>
+            <td>Multi AI Provider</td>
+            <td class="ck hl-col">✓ 2</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+            <td class="cx">✗</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="card card-accent mt-12">
+        <h4 style="color:var(--accent);">Moat: Data Flywheel</h4>
+        <p>Every AI execution improves code quality, review accuracy, and estimation precision. The task→PR pipeline creates compounding data advantages that competitors can't replicate without rebuilding both PM and AI layers.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>FlowForge — Confidential</span>
+    <span>Page 2 of 4</span>
+  </div>
+</div>
+
+<!-- ======================================================================
+     PAGE 3 — Business Model + Traction + Roadmap
+     ====================================================================== -->
+<div class="page">
+  <div class="page-header">
+    <div class="logo">Flow<span>Forge</span></div>
+    <div class="meta">Business Model, Traction & Roadmap</div>
+  </div>
+
+  <div class="grid-2 gap-20">
+    <!-- Left: Business Model -->
+    <div>
+      <div class="section-label">Business Model</div>
+      <h2>SaaS + Usage-Based AI Upside</h2>
+
+      <div class="grid-3 mt-12 gap-8">
+        <div class="price-card">
+          <div class="tier">Free</div>
+          <div class="price" style="font-size:20px;">₹0</div>
+          <ul>
+            <li>Up to 3 projects</li>
+            <li>GitHub integration</li>
+            <li>Basic AI suggestions</li>
+          </ul>
+        </div>
+        <div class="price-card featured">
+          <div class="tier">Pro</div>
+          <div class="price" style="font-size:20px;">₹999<span>/user/mo</span></div>
+          <ul>
+            <li>Unlimited projects</li>
+            <li>Advanced AI gen</li>
+            <li>Sprint analytics</li>
+          </ul>
+        </div>
+        <div class="price-card">
+          <div class="tier">Enterprise</div>
+          <div class="price" style="font-size:20px;">Custom</div>
+          <ul>
+            <li>SSO / SAML</li>
+            <li>On-premise deploy</li>
+            <li>SLA guarantees</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="mt-12" style="font-size:11px;"><strong>Revenue drivers:</strong> Seat-based SaaS (predictable MRR) + AI execution credits (usage upside) + Enterprise annual contracts.</p>
+
+      <div class="section-label mt-16">Target Unit Economics</div>
+      <div style="background:#f8fafc; border-radius:10px; padding:12px 16px; border:1px solid var(--border);">
+        <div class="metric-row"><span class="ml">LTV (per seat)</span><span class="mv">₹2.4L ($2,880)</span></div>
+        <div class="metric-row"><span class="ml">CAC</span><span class="mv">₹26K ($320)</span></div>
+        <div class="metric-row"><span class="ml">LTV:CAC Ratio</span><span class="mv" style="color:var(--accent);">9:1</span></div>
+        <div class="metric-row"><span class="ml">Gross Margin</span><span class="mv">78%</span></div>
+        <div class="metric-row"><span class="ml">Net Revenue Retention</span><span class="mv">125%</span></div>
+        <div class="metric-row"><span class="ml">Payback Period</span><span class="mv">4 months</span></div>
+      </div>
+
+      <div class="card card-success mt-12">
+        <h4 style="color:#065f46;">Land & Expand</h4>
+        <p style="color:#047857;">Free tier drives adoption → teams upgrade as AI executions prove value → average expansion 3x within 6 months. PLG motion keeps CAC low.</p>
+      </div>
+    </div>
+
+    <!-- Right: Traction + Roadmap -->
+    <div>
+      <div class="section-label">Traction</div>
+      <h2>Product-First, Capital-Efficient</h2>
+
+      <div class="grid-2 mt-12 gap-8">
+        <div class="stat">
+          <div class="num" style="font-size:24px;">295+</div>
+          <div class="label">Source files shipped</div>
+        </div>
+        <div class="stat">
+          <div class="num" style="font-size:24px;">50+</div>
+          <div class="label">Features built</div>
+        </div>
+        <div class="stat">
+          <div class="num" style="font-size:24px;">15+</div>
+          <div class="label">PRs merged</div>
+        </div>
+        <div class="stat">
+          <div class="num" style="font-size:24px;">2</div>
+          <div class="label">AI providers integrated</div>
+        </div>
+      </div>
+
+      <ul class="blist mt-12">
+        <li>Full Kanban board with drag-and-drop, WIP limits, task hierarchy (Epics → Subtasks)</li>
+        <li>End-to-end AI code generation pipeline with human-in-the-loop review</li>
+        <li>Deep GitHub integration — webhooks, PR management, CI/CD tracking</li>
+        <li>AI sprint planning — risk assessment, dependency detection, auto-retros</li>
+        <li>Multi-tenant org support with role-based access control</li>
+        <li>Open-source community with organic contributors and feature requests</li>
+      </ul>
+
+      <hr class="divider">
+
+      <div class="section-label">Roadmap</div>
+      <div class="mt-8">
+        <div class="tl-item">
+          <div class="tl-dot done">✓</div>
+          <div class="tl-content">
+            <h4>Phase 1 — Foundation (Done)</h4>
+            <p>Core PM, Kanban, sprints, GitHub integration, AI code generation pipeline</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot now">→</div>
+          <div class="tl-content">
+            <h4>Phase 2 — Intelligence (Q2 2026)</h4>
+            <p>Advanced analytics, velocity/burndown charts, time tracking, custom dashboards</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot next">3</div>
+          <div class="tl-content">
+            <h4>Phase 3 — Ecosystem (Q3 2026)</h4>
+            <p>Slack, GitLab, Jira migration, API marketplace, automation rules</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot next">4</div>
+          <div class="tl-content">
+            <h4>Phase 4 — Enterprise (Q4 2026)</h4>
+            <p>SSO/SAML, on-premise, SOC 2, audit logs, advanced RBAC</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>FlowForge — Confidential</span>
+    <span>Page 3 of 4</span>
+  </div>
+</div>
+
+<!-- ======================================================================
+     PAGE 4 — The Ask + Milestones + Closing
+     ====================================================================== -->
+<div class="page">
+  <div class="page-header">
+    <div class="logo">Flow<span>Forge</span></div>
+    <div class="meta">The Ask & Vision</div>
+  </div>
+
+  <div class="section-label">The Ask</div>
+  <h2 style="font-size:24px;">Raising ₹20 Crore (~$2.5M) Seed Round</h2>
+  <p class="mt-8" style="font-size:13px; max-width:560px;">To accelerate product development, launch publicly, build the go-to-market engine, and capture the AI-native project management category — from India, for the world.</p>
+
+  <div class="grid-3 mt-16">
+    <div class="stat" style="background:var(--accent-bg); border-color:#c7d2fe;">
+      <div class="num">₹20 Cr</div>
+      <div class="label">Seed Round (~$2.5M)</div>
+    </div>
+    <div class="stat" style="background:var(--success-bg); border-color:#bbf7d0;">
+      <div class="num" style="color:var(--success);">18 mo</div>
+      <div class="label">Runway to Series A</div>
+    </div>
+    <div class="stat" style="background:var(--orange-bg); border-color:#fed7aa;">
+      <div class="num" style="color:var(--orange);">₹16 Cr+</div>
+      <div class="label">ARR Target (2027)</div>
+    </div>
+  </div>
+
+  <div class="grid-2 mt-16 gap-20">
+    <div>
+      <div class="section-label">Use of Funds</div>
+      <div style="background:#f8fafc; border-radius:10px; padding:16px; border:1px solid var(--border);" class="mt-8">
+        <!-- Progress bars -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px;">
+            <span>Engineering (50%)</span><span style="color:var(--accent);">₹10 Cr</span>
+          </div>
+          <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+            <div style="width:50%; height:100%; background:var(--accent); border-radius:4px;"></div>
+          </div>
+          <p style="font-size:10px; margin-top:2px;">Hire 3-4 senior engineers to accelerate roadmap</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px;">
+            <span>AI Infrastructure (20%)</span><span style="color:var(--accent);">₹4 Cr</span>
+          </div>
+          <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+            <div style="width:20%; height:100%; background:var(--accent-light); border-radius:4px;"></div>
+          </div>
+          <p style="font-size:10px; margin-top:2px;">API costs, model fine-tuning, execution pipeline</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px;">
+            <span>Go-to-Market (20%)</span><span style="color:var(--accent);">₹4 Cr</span>
+          </div>
+          <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+            <div style="width:20%; height:100%; background:var(--success); border-radius:4px;"></div>
+          </div>
+          <p style="font-size:10px; margin-top:2px;">DevRel, content marketing, community building, India GTM</p>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px;">
+            <span>Operations (10%)</span><span style="color:var(--accent);">₹2 Cr</span>
+          </div>
+          <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+            <div style="width:10%; height:100%; background:var(--orange); border-radius:4px;"></div>
+          </div>
+          <p style="font-size:10px; margin-top:2px;">Legal, compliance (SOC 2), cloud infrastructure</p>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Key Milestones</div>
+      <div class="mt-8">
+        <div class="card" style="margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h4>Q2 2026 — Public Beta</h4>
+            <span style="font-size:10px; background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:100px; font-weight:600;">NEXT</span>
+          </div>
+          <p>Open sign-ups, free tier launch, community building. <strong>Target: 500 active teams.</strong></p>
+        </div>
+        <div class="card" style="margin-bottom:8px;">
+          <h4>Q3 2026 — Revenue Launch</h4>
+          <p>Pro tier monetization, GCC outreach, enterprise pilots. <strong>Target: ₹40L MRR.</strong></p>
+        </div>
+        <div class="card" style="margin-bottom:8px;">
+          <h4>Q4 2026 — Enterprise Ready</h4>
+          <p>SOC 2, SSO/SAML, on-premise option. <strong>Target: 3 enterprise contracts.</strong></p>
+        </div>
+        <div class="card card-accent">
+          <h4 style="color:var(--accent);">2027 — Series A Position</h4>
+          <p>₹16 Cr+ ARR, 50+ paying teams, proven unit economics, category leadership in AI-native PM.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Closing -->
+  <div style="background:linear-gradient(135deg,#0f172a,#1e293b); border-radius:14px; padding:28px 32px; margin-top:20px; text-align:center; color:#fff;">
+    <div style="font-size:16px; font-weight:800; letter-spacing:-0.3px; margin-bottom:6px;">
+      <span style="color:#fff;">Flow</span><span style="color:var(--accent-light);">Forge</span>
+    </div>
+    <h2 style="color:#fff; font-size:20px; font-weight:800;">The future of software delivery starts here.</h2>
+    <p style="color:rgba(255,255,255,.5); font-size:12px; margin-top:6px;">Not another project management tool — the platform that makes engineering teams superhuman.</p>
+    <div style="display:flex; gap:20px; justify-content:center; margin-top:16px;">
+      <span style="color:rgba(255,255,255,.6); font-size:11px; padding:6px 14px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.05);">flowforge.dev</span>
+      <span style="color:rgba(255,255,255,.6); font-size:11px; padding:6px 14px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.05);">team@flowforge.dev</span>
+      <span style="color:rgba(255,255,255,.6); font-size:11px; padding:6px 14px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.05);">github.com/flowforge</span>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>FlowForge — Confidential</span>
+    <span>Page 4 of 4</span>
+  </div>
+</div>
+
+</body>
+</html>
