@@ -1,46 +1,38 @@
-const { expect } = require('chai');
-const sinon = require('sinon');
-const createOrganization = require('../../src/services/organizationService').create;
+const { createOrganization } = require('../../src/services/organizations');
+const { Organization } = require('../../prisma/client');
 
-// Mock database and other dependencies
-const dbMock = {
-  create: sinon.stub()
-};
-
-// Unit test suite for createOrganization function
-describe('createOrganization', function() {
-  afterEach(() => {
-    sinon.restore();
+describe('Organization Creation', () => {
+  beforeAll(() => {
+    jest.clearAllMocks();
   });
 
-  it('should create a new organization successfully', async function() {
-    // Arrange: setup expected result and mock behavior
-    const orgData = { name: 'Test Org', description: 'Test Description' };
-    const expectedResult = { id: 1, ...orgData };
-    dbMock.create.resolves(expectedResult);
+  it('should create an organization with valid data', async () => {
+    const mockOrgData = { name: 'New Org', ownerId: 'user-id' };
+    const mockCreatedOrg = { id: 'org-id', ...mockOrgData };
+    
+    Organization.create = jest.fn().mockResolvedValue(mockCreatedOrg);
+    const result = await createOrganization(mockOrgData);
 
-    // Stub actual database call within the service
-    const createOrgStub = sinon.stub(createOrganization, 'create').resolves(expectedResult);
-
-    // Act: call the function with the test data
-    const result = await createOrganization(orgData);
-
-    // Assert: verify the result is as expected
-    expect(result).to.deep.equal(expectedResult);
-    sinon.assert.calledOnceWithExactly(createOrgStub, orgData);
+    expect(Organization.create).toHaveBeenCalledWith({ data: mockOrgData });
+    expect(result).toEqual(mockCreatedOrg);
   });
 
-  it('should throw an error when organization creation fails', async function() {
-    // Arrange: setup data and mock behavior
-    const orgData = { name: 'Test Org', description: 'Test Description' };
-    const expectedError = new Error('Database error');
-    dbMock.create.rejects(expectedError);
+  it('should throw an error if organization name is missing', async () => {
+    const mockOrgData = { ownerId: 'user-id' };
 
-    // Stub actual database call within the service
-    const createOrgStub = sinon.stub(createOrganization, 'create').rejects(expectedError);
+    await expect(createOrganization(mockOrgData)).rejects.toThrow('Organization name is required');
+  });
 
-    // Act & Assert: expect an error to be thrown
-    await expect(createOrganization(orgData)).to.be.rejectedWith('Database error');
-    sinon.assert.calledOnceWithExactly(createOrgStub, orgData);
+  it('should throw an error if ownerId is missing', async () => {
+    const mockOrgData = { name: 'New Org' };
+
+    await expect(createOrganization(mockOrgData)).rejects.toThrow('Owner ID is required');
+  });
+
+  it('should handle database errors gracefully', async () => {
+    const mockOrgData = { name: 'New Org', ownerId: 'user-id' };
+    Organization.create = jest.fn().mockRejectedValue(new Error('Database error'));
+
+    await expect(createOrganization(mockOrgData)).rejects.toThrow('Database error');
   });
 });
